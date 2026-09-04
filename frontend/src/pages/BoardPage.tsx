@@ -2,20 +2,31 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import { toast } from 'sonner'
 import { api } from '@/api/client'
 import type { ApplicationCard, Stage } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
-import { STAGE_META, STAGES, fmtDateTime } from '@/lib/labels'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import { CHANNEL_LABELS, STAGE_META, STAGES, fmtDateTime } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /**
  * 投递看板：每列一个阶段，拖拽卡片跨列即触发状态流转 API。
- * dnd-kit 选型说明：HTML5 原生拖拽 API 在 React 中状态管理繁琐，
- * dnd-kit 以 hooks 抽象拖拽源/放置目标，且天然支持键盘无障碍操作。
+ * 拖到「已投递」时弹渠道确认框（契约要求 channel），其余阶段直接流转。
  */
 export default function BoardPage() {
   const [groups, setGroups] = useState<Record<Stage, ApplicationCard[]> | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pendingApplied, setPendingApplied] = useState<{ appId: number; title: string } | null>(null)
+  const [channel, setChannel] = useState('official')
+  const [submitting, setSubmitting] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const load = useCallback(() => {
@@ -24,23 +35,30 @@ export default function BoardPage() {
 
   useEffect(load, [load])
 
-  async function onDragEnd(ev: DragEndEvent) {
+  async function doTransition(appId: number, toStage: Stage, ch?: string) {
+    setSubmitting(true)
+    try {
+      await api.transition(appId, { to_stage: toStage, channel: ch })
+      toast.success(`已流转到「${STAGE_META[toStage].label}」`)
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function onDragEnd(ev: DragEndEvent) {
     const appId = ev.active.data.current?.appId as number | undefined
+    const title = ev.active.data.current?.title as string | undefined
     const fromStage = ev.active.data.current?.stage as Stage | undefined
     const toStage = ev.over?.id as Stage | undefined
     if (!appId || !toStage || fromStage === toStage) return
 
-    // 流转到 applied 契约要求 channel；其余阶段直接流转
-    let channel: string | undefined
     if (toStage === 'applied') {
-      channel = window.prompt('投递渠道（official/boss/niuke/email/referral/campus_talk）', 'official') ?? undefined
-      if (!channel) return // 用户取消
-    }
-    try {
-      await api.transition(appId, { to_stage: toStage, channel })
-      load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setPendingApplied({ appId, title: title ?? '' })
+    } else {
+      doTransition(appId, toStage)
     }
   }
 
@@ -57,6 +75,36 @@ export default function BoardPage() {
           ))}
         </div>
       </DndContext>
+
+      {/* 拖到「已投递」时的渠道确认框 */}
+      <Dialog open={pendingApplied !== null} onOpenChange={(open) => !open && setPendingApplied(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>确认投递</DialogTitle>
+            <DialogDescription>{pendingApplied?.title}：请选择投递渠道</DialogDescription>
+          </DialogHeader>
+          <Select value={channel} onValueChange={setChannel}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(CHANNEL_LABELS).map(([v, l]) => (
+                <SelectItem key={v} value={v}>{l}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button
+              disabled={submitting}
+              onClick={async () => {
+                if (!pendingApplied) return
+                await doTransition(pendingApplied.appId, 'applied', channel)
+                setPendingApplied(null)
+              }}
+            >
+              {submitting ? '提交中…' : '确认投递'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -86,7 +134,7 @@ function Column({ stage, cards }: { stage: Stage; cards: ApplicationCard[] }) {
 function CardView({ card }: { card: ApplicationCard }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `app-${card.id}`,
-    data: { appId: card.id, stage: card.stage },
+    data: { appId: card.id, stage: card.stage, title: `${card.company_name} · ${card.title}` },
   })
   return (
     <div
@@ -96,6 +144,7 @@ function CardView({ card }: { card: ApplicationCard }) {
       {...attributes}
       className={cn(
         'rounded-md border bg-card p-2 shadow-xs cursor-grab active:cursor-grabbing select-none',
+        'hover:shadow-md hover:border-primary/40 transition-shadow',
         isDragging && 'opacity-60 ring-2 ring-primary z-50 relative'
       )}
     >

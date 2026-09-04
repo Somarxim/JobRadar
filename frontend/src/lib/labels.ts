@@ -25,6 +25,16 @@ export const COMPANY_TYPE_LABELS: Record<string, string> = {
   other: '其他',
 }
 
+/** 投递渠道中文名（后端存英文枚举值，UI 显示中文） */
+export const CHANNEL_LABELS: Record<string, string> = {
+  official: '官网投递',
+  boss: 'BOSS直聘',
+  niuke: '牛客',
+  email: '邮件',
+  referral: '内推',
+  campus_talk: '宣讲会',
+}
+
 export const CALENDAR_TYPE_META: Record<string, { label: string; className: string }> = {
   deadline: { label: '投递截止', className: 'bg-red-100 text-red-700' },
   written_test: { label: '笔试', className: 'bg-amber-100 text-amber-700' },
