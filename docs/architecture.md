@@ -2,7 +2,8 @@
 
 | 版本 | 日期 | 状态 |
 |---|---|---|
-| v0.1 | 2026-09-03 | 初稿 |
+| v0.2 | 2026-09-04 | 后端栈更换为 Java/Spring（见 ADR-0） |
+| v0.1 | 2026-09-03 | 初稿（Python/FastAPI 方案，已废弃） |
 
 ## 1. 总体架构
 
@@ -13,144 +14,142 @@
 └──────────────────────────┬─────────────────────────────┘
                            │ REST / JSON
 ┌──────────────────────────▼─────────────────────────────┐
-│                 apps/api  (FastAPI)                     │
-│  ┌────────────┬─────────────┬───────────┬────────────┐ │
-│  │ jobs 模块  │ applications │ dashboard │ match 模块 │ │
-│  └────────────┴─────────────┴───────────┴────────────┘ │
-│  依赖注入：DB Session / LLM Provider / Embedder         │
-└───┬───────────────┬───────────────────────┬────────────┘
-    │ 共享 SQLAlchemy Models + Service 层 (packages/core)
-    │               │                       │
-┌───▼───────┐  ┌────▼─────────────┐  ┌──────▼─────────────┐
-│ apps/     │  │ packages/        │  │ apps/              │
-│ mcp-server│  │ crawler          │  │ scheduler (内嵌api) │
-│ (stdio)   │  │ 定向爬虫+清洗管线  │  │ APScheduler 定时任务│
-└───────────┘  └────┬─────────────┘  └────────────────────┘
-                    │ 抓取目标：国聘/研究所官网/牛客
-┌───────────────────▼────────────────────────────────────┐
-│              SQLite (jobradar.db)                       │
-│   业务表 + FTS5 全文索引 + BLOB 向量（内存暴力检索）        │
-└────────────────────────────────────────────────────────┘
+│        jobradar-app (Spring Boot, Maven module)         │
+│  web 层: Controllers (jobs/applications/dashboard/...)  │
+│  service 层: 业务逻辑（供 Web 与 MCP 双入口复用）          │
+│  agent 层: 匹配/推荐/周报 (Spring AI ChatClient)         │
+│  crawler 层: 爬虫框架 + 站点适配 (Jsoup/Playwright)      │
+│  调度: @Scheduled 每日管线                               │
+└───┬───────────────────────────────┬────────────────────┘
+    │ 共享 Maven 模块 jobradar-core   │
+    │ (domain / repo / service / agent / dto)
+    │                               │
+┌───▼──────────────────┐   ┌────────▼─────────────────────┐
+│ jobradar-mcp-server  │   │  PostgreSQL 16 + pgvector     │
+│ (stdio, Spring AI    │   │  业务表 + tsvector 全文检索    │
+│  MCP Server Starter) │   │  + vector(1024) 语义检索      │
+└──────────────────────┘   └──────────────────────────────┘
 
 外部触点：
-  Chrome 插件 (apps/extension) ──POST /api/jobs/ingest──▶ api
-  Claude Desktop ◀──stdio MCP──▶ apps/mcp-server
-  LLM APIs (Claude/DeepSeek/Kimi) ◀──▶ packages/llm (Provider 抽象)
+  Chrome 插件 (apps/extension) ──POST /api/jobs/ingest──▶ app
+  Claude Desktop ◀──stdio MCP──▶ jobradar-mcp-server
+  LLM APIs (Claude/DeepSeek/Kimi) ◀──▶ Spring AI ChatModel 抽象
 ```
 
-## 2. Monorepo 目录结构
+## 2. 目录结构
 
 ```
 JobRadar/
 ├── apps/
-│   ├── api/                 # FastAPI 后端（含 APScheduler 定时任务）
-│   │   ├── main.py
-│   │   ├── deps.py          # 依赖注入（DB/LLM/Embedder）
-│   │   ├── routers/         # jobs / applications / dashboard / resumes / match ...
-│   │   └── services/        # 业务逻辑（与 router 分离，供 MCP 复用）
-│   ├── web/                 # React SPA
-│   │   ├── src/pages/       # Dashboard / Board / Calendar / Jobs / JobDetail / Resume / Settings
-│   │   ├── src/components/
-│   │   └── src/lib/api.ts   # API client (fetch 封装)
-│   ├── extension/           # Chrome MV3 插件
-│   │   ├── manifest.json
-│   │   ├── content.js       # 页面岗位信息提取
-│   │   └── popup/           # 收藏弹窗（确认/编辑后提交）
-│   └── mcp-server/          # MCP Server（stdio，接 Claude Desktop）
-│       └── server.py        # tools/resources/prompts 注册
-├── packages/
-│   ├── core/                # 共享层：models / schemas / database / config
-│   ├── llm/                 # LLM Provider 抽象 + 各厂商实现 + Embedding
-│   ├── agent/               # 匹配 Agent / 推荐 Agent / 周报 Agent
-│   └── crawler/             # 爬虫框架 + 各站点 spider + 清洗管线 + 去重
-├── tests/                   # pytest（core/llm/agent 单测 + api 集成测试）
-├── data/                    # jobradar.db / 上传的简历文件（gitignore）
+│   ├── web/                 # React SPA（与后端语言无关，结构不变）
+│   └── extension/           # Chrome MV3 插件（不变）
+├── backend/                 # Maven 多模块项目
+│   ├── pom.xml              # 父 POM（依赖版本管理）
+│   ├── jobradar-core/       # 核心模块：domain(JPA Entity) / repository(Spring Data JPA)
+│   │                        #   / service / agent / crawler / dto
+│   ├── jobradar-app/        # Web 应用模块：Controller + @Scheduled 调度 + 启动类
+│   └── jobradar-mcp-server/ # MCP 模块：@Tool 注册 + stdio 启动类（依赖 core）
+├── apps/web/…               # （见上）
+├── data/                    # 简历文件等本地数据（gitignore）
+├── deploy/
+│   └── docker-compose.yml   # pgvector/pgvector:pg16 单容器
 ├── docs/                    # 设计文档
 ├── document/plans/          # 开发记录
-├── pyproject.toml           # uv 管理（单 Python 包，apps/packages 全在内）
-└── package.json             # workspace 根（仅聚合 web/extension 脚本）
+└── README.md
 ```
 
-**为什么 Python 侧不分多个包**：个人项目，单一 pyproject + 内部包划分最省心；模块边界靠目录与 import 约束，MCP/爬虫/调度都复用同一套 models 与 service，避免跨包版本地狱。
+**Maven 三模块划分理由**：core 沉淀全部领域逻辑，app 与 mcp-server 是同一能力的两种宿主（HTTP / stdio），编译期即强制业务逻辑不泄漏进宿主层。前端 `apps/` 与后端 `backend/` 并列，界限清晰。
 
 ## 3. 技术选型
 
 | 层 | 选型 | 理由 |
 |---|---|---|
-| 前端框架 | Vite + React 18 + TypeScript | SPA 够用，无需 SSR；生态成熟 |
-| UI | Tailwind CSS + shadcn/ui | 快速搭建美观界面，组件可复制定制 |
-| 看板拖拽 | @dnd-kit | 现代拖拽库，可访问性好 |
-| 图表 | Recharts | React 原生，漏斗/柱状/饼图开箱即用 |
-| 日历 | 自研网格 + date-fns（或 react-big-calendar） | 需求简单（事件打点），避免重型依赖 |
-| 后端 | FastAPI + SQLAlchemy 2.0 + Pydantic v2 | 与用户既有项目栈一致，异步 + 类型安全 |
-| 数据库 | SQLite + FTS5 | 零运维单机方案；FTS5 支持全文检索；WAL 模式支撑 API/MCP/爬虫三进程并发读写 |
-| 任务调度 | APScheduler (AsyncIOScheduler) | 内嵌 API 进程，无需独立 worker/broker |
-| LLM SDK | 各厂商官方 SDK（anthropic / openai 兼容协议） | DeepSeek/Kimi 均兼容 OpenAI 协议，抽象成本低 |
-| MCP | 官方 `mcp` Python SDK (FastMCP) | 协议正统实现，简历关键词 |
-| 爬虫 | httpx + BeautifulSoup4；动态页 Playwright（按需引入） | 目标站点多为静态页，轻量优先 |
-| 前端包管理 | pnpm | 快速、节省磁盘 |
-| Python 包管理 | uv | 与用户习惯一致 |
-| 测试 | pytest + httpx (API 集成) | 与既有项目一致 |
+| 语言 | Java 21 LTS | 目标雇主（银行/运营商/军工所）主流栈；虚拟线程等新特性是校招面试常考点 |
+| 框架 | Spring Boot 3.5+/4.x（以初始化时稳定版为准） | 企业级事实标准 |
+| AI 集成 | **Spring AI 1.x** | ChatModel 多 Provider 抽象 / `entity()` 结构化输出 / EmbeddingModel / MCP Server Starter——原生覆盖本项目全部 AI 需求 |
+| ORM | Spring Data JPA (Hibernate 6) | 企业主流；Hibernate 对复杂领域模型表达力好 |
+| 数据库 | PostgreSQL 16 + pgvector | 与既有项目 SQLite 差异化；pgvector 原生向量索引；JSONB 存半结构化数据 |
+| 迁移 | Flyway | Java 生态标准，W1 即引入 |
+| 全文检索 | PG tsvector + jieba-analysis 分词（pg_trgm 兜底） | 见 data-model.md §2.3 |
+| 调度 | Spring `@Scheduled` | 单机定时任务够用，零额外组件 |
+| 爬虫 | Jsoup（静态页）+ Playwright Java（动态页，按需） | Java 生态对应方案 |
+| PDF 解析 | Apache PDFBox | 简历 PDF 文本提取 |
+| 构建 | Maven | 国企/银行存量主流，面试安全牌 |
+| 测试 | JUnit 5 + Spring Boot Test + Testcontainers(PG) | Testcontainers 提供真实 PG 集成测试，简历加分项 |
+| MCP | spring-ai-mcp-server（官方 Java SDK） | 见 agent-design.md §6 |
+| 前端 | 不变：Vite + React 18 + TS + Tailwind + shadcn/ui + Recharts + @dnd-kit | |
+| 前端包管理 | pnpm | |
 
 ## 4. 关键架构决策（ADR）
 
-### ADR-1：SQLite 而非 PostgreSQL
+### ADR-0：后端采用 Java/Spring 而非 Python/FastAPI ★（v0.2 新增）
 
-- **决策**：单文件 SQLite（WAL 模式）。
-- **理由**：单用户本地应用，零运维、零安装、备份=复制文件；万级数据量下性能无瓶颈。
-- **代价与对策**：多进程写入需串行化 → 爬虫/调度写入经 API 进程或加锁；FTS5 中文分词弱 → 建索引时用 jieba 预分词写入（或 trigram tokenizer，详见 data-model.md）。
-- **退出路径**：SQLAlchemy 抽象保证未来可切 PostgreSQL，仅改连接串与少量方言。
+- **背景**：作者既有项目（CodeAtlasMVP 等）已是 Python/FastAPI/SQLite 栈，简历技术栈需差异化。
+- **决策**：Java 21 + Spring Boot + Spring AI + PostgreSQL + Maven。
+- **理由**：
+  1. 简历叙事：Python（AI/Agent 项目）+ Java（企业级后端）双栈，覆盖面最大化；
+  2. 雇主匹配：目标雇主（军工研究所信息部门、运营商、银行软开）技术栈以 Java/Spring 为主，项目即面试话题；
+  3. 生态就绪：Spring AI 的 ChatModel 抽象、结构化输出、MCP Server Starter 使原设计无损平移。
+- **代价与对策**：作者 Java/Spring 熟练度低于 Python → 开发以 AI 辅助为主，同时把开发过程当作银行/国企 Java 技术面试的实战备战；编码规范遵循 Spring 官方指南，保证"讲得清楚每一层"。
 
-### ADR-2：插件辅助采集为主，定向爬虫为辅
+### ADR-1：PostgreSQL + pgvector 而非 SQLite（v0.2 修订）
 
-- **决策**：不做互联网平台（BOSS 等）的自动爬取；广度靠 Chrome 插件（人工浏览时一键收藏），增量发现靠反爬弱的公开官网爬虫。
-- **理由**：BOSS 等平台反爬严格且涉及登录态，自动爬取有账号封禁与合规风险；而"发现盲区"的痛点集中在国企/研究所官网——这些站点反爬弱、更新规律，适合定时爬。
-- **效果**：插件覆盖"看到的都能收"，爬虫解决"没看到的也能发现"。
+- **决策**：PostgreSQL 16（docker-compose 单容器）+ pgvector 扩展。
+- **理由**：与既有项目 SQLite 差异化；pgvector 提供原生向量类型与 HNSW 索引，替代原"内存暴力扫描"方案；JSONB 适合存 `requirements` / `match detail` 等半结构化数据；PG 是国企/银行新项目主流（替代 Oracle 趋势）。
+- **代价**：本地开发需 Docker（备选：Homebrew postgresql@16 + pgvector）；运维成本略增，可接受。
 
-### ADR-3：LLM Provider 抽象层
+### ADR-2：插件辅助采集为主，定向爬虫为辅（不变）
 
-- **决策**：定义统一接口（`complete` / `structured_output` / `embed`），实现 Claude / DeepSeek / Kimi 三个 Provider，配置驱动切换，支持按任务类型路由（如解析用便宜模型、精评用强模型）。
-- **理由**：避免供应商锁定；成本可控（结构化解析走 DeepSeek，关键评分可走 Claude）；简历上构成"多模型适配"叙事点。
+- 不做互联网平台（BOSS 等）自动爬取；广度靠 Chrome 插件，增量发现靠国企/研究所/运营商官网爬虫（目标清单见 [target-sources.md](target-sources.md)）。
+- 理由同 v0.1：反爬合规与覆盖面的平衡；盲区痛点集中在反爬弱的官网。
 
-### ADR-4：向量检索用内存暴力扫描，不引入向量数据库
+### ADR-3：LLM 接入基于 Spring AI 抽象，不自造 Provider 层（v0.2 修订）
 
-- **决策**：embedding 以 BLOB 存 SQLite（float32 numpy），查询时全量加载到内存做余弦相似度。
-- **理由**：岗位规模 ≤ 数万条，1024 维向量全量约几十 MB，单次扫描 < 100ms；引入 FAISS/Qdrant/sqlite-vec 对个人项目是过度工程。
-- **退出路径**：数据量超 10 万条再切 sqlite-vec，接口不变。
+- **决策**：直接使用 Spring AI 的 `ChatModel`/`ChatClient` 与 `EmbeddingModel` 抽象，按任务类型装配不同 Model bean（解析用 DeepSeek、精评/报告可用 Claude）。
+- **理由**：Spring AI 已提供统一抽象与各家 starter（Anthropic、OpenAI 兼容协议接 DeepSeek/Kimi），自造轮子无增量价值；"基于 Spring AI 的多模型路由"本身就是简历叙事。
+- **保留的自研部分**：任务路由配置（`application.yml` 按 parse/match/report 分配模型）、token 用量记账、失败 fallback——这些是工程亮点所在。
 
-### ADR-5：MCP Server 独立进程，复用 Service 层
+### ADR-4：向量检索用 pgvector HNSW 索引（v0.2 修订）
 
-- **决策**：`apps/mcp-server` 以 stdio 运行（Claude Desktop 标准接法），直接 import `apps/api/services` 与 `packages/core`，共享同一 SQLite 文件。
-- **理由**：MCP Server 与 API 是同一领域能力的两种暴露方式（LLM 工具 vs HTTP），业务逻辑必须只有一份。
-- **并发**：SQLite WAL 模式支持多读单写，MCP 的写操作走同一 service（带锁），安全。
+- **决策**：`embedding vector(1024)` 列 + HNSW 索引，粗筛 SQL `ORDER BY embedding <=> ? LIMIT k`。
+- **理由**：PG 方案下这是零额外组件的最优解；万级数据 HNSW 毫秒级。
+- embedding 模型：bge-m3（1024 维），走 OpenAI 兼容 API（百炼/硅基流动）或本地 Ollama；chat 与 embedding 的 Provider 解耦（DeepSeek 无 embedding API）。
 
-### ADR-6：调度器内嵌 API 进程
+### ADR-5：MCP Server 独立模块，复用 core service 层（实现方式修订）
 
-- **决策**：APScheduler 以 AsyncIOScheduler 挂在 FastAPI lifespan 里，每日定时跑爬虫管线。
-- **理由**：个人应用无需 Celery/Redis；重启即恢复，任务定义在代码里可版本化。
+- **决策**：`jobradar-mcp-server` 模块，Spring AI MCP Server Starter，stdio 传输接 Claude Desktop；`@Tool` 注解薄封装 core 的 service 方法。
+- **理由**：同一领域能力的两种暴露（HTTP vs LLM 工具），业务逻辑只在 core 存在一份。
+
+### ADR-6：调度器内嵌应用进程（实现方式修订）
+
+- **决策**：`@Scheduled(cron)` 挂在 jobradar-app 内跑每日推荐管线；无独立 worker。
+- **理由**：同 v0.1——个人应用无需消息队列与独立调度服务。
 
 ## 5. 部署与运行
 
 ```bash
-# 后端（含调度器）
-uv sync && uv run uvicorn apps.api.main:app --reload --port 8000
+# 0. 数据库（首次）
+docker compose -f deploy/docker-compose.yml up -d   # pgvector/pgvector:pg16
 
-# 前端
-pnpm --filter web dev   # localhost:5173，proxy /api → :8000
+# 1. 后端（含调度器）
+cd backend && ./mvnw spring-boot:run -pl jobradar-app
 
-# MCP Server（Claude Desktop 配置）
+# 2. 前端
+pnpm --filter web dev   # localhost:5173，proxy /api → :8080
+
+# 3. MCP Server（Claude Desktop 配置）
 claude_desktop_config.json:
-  "jobradar": { "command": "uv", "args": ["run", "python", "-m", "apps.mcp_server.server"],
-                "cwd": "/path/to/JobRadar" }
+  "jobradar": { "command": "java",
+                "args": ["-jar", "/path/to/jobradar-mcp-server/target/jobradar-mcp-server.jar"] }
 
-# Chrome 插件
+# 4. Chrome 插件
 chrome://extensions → 开发者模式 → 加载已解压的 apps/extension
 ```
 
-LLM 配置经 `.env`（`LLM_PROVIDER=deepseek` / `DEEPSEEK_API_KEY=...`），提供 `.env.example`。
+LLM 配置经 `application.yml` + 环境变量（`DEEPSEEK_API_KEY` / `ANTHROPIC_API_KEY` / `MOONSHOT_API_KEY` / `EMBEDDING_API_KEY`），提供 `application-example.yml`。
 
 ## 6. 安全与隐私
 
-- 简历 PDF 仅存本地 `data/`；LLM 解析仅发送文本内容，可选脱敏开关（隐去姓名/电话后再发送）。
-- 全部第三方调用出站仅 LLM API 与被爬官网，无其他遥测。
-- API 默认绑定 127.0.0.1；插件请求带本地 token 校验（防止其他网页恶意调用本地 API）。
+- 简历 PDF 仅存本地 `data/`；LLM 解析仅发送文本，可选脱敏开关（隐去姓名/电话）。
+- 出站调用仅 LLM API 与被爬官网，无遥测。
+- API 默认绑定 127.0.0.1；插件请求带 `X-Local-Token` 校验；CORS 仅放行 vite dev server 与插件 origin。

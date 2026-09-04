@@ -2,9 +2,10 @@
 
 | 版本 | 日期 | 状态 |
 |---|---|---|
+| v0.2 | 2026-09-04 | 契约不变，实现栈切换 Spring Boot（architecture v0.2） |
 | v0.1 | 2026-09-03 | 初稿 |
 
-Base URL：`http://127.0.0.1:8000/api`。风格：REST + Pydantic v2 schema，错误用 HTTP 状态码 + `{"detail": ...}`。分页参数：`page`（从 1 起）、`size`（默认 20，上限 100），分页响应统一为 `{items: [], total: n, page, size}`。
+Base URL：`http://127.0.0.1:8080/api`。风格：REST + DTO（Java record），错误用 HTTP 状态码 + `{"detail": ...}`。分页参数：`page`（从 1 起）、`size`（默认 20，上限 100），分页响应统一为 `{items: [], total: n, page, size}`。本契约与实现语言无关，文档内示例均以最终上线行为为准。
 
 ## 1. 端点总览
 
