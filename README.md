@@ -27,10 +27,13 @@ JobRadar 通过「多源采集 + 统一岗位库 + 投递看板 + AI 匹配 Agen
 | 层 | 技术 |
 |---|---|
 | 前端 | Vite + React + TypeScript + Tailwind + shadcn/ui + Recharts + @dnd-kit |
-| 后端 | FastAPI + SQLAlchemy 2.0 + SQLite (FTS5) |
-| AI | 多模型 Provider 抽象（Claude / DeepSeek / Kimi），MCP Python SDK |
-| 采集 | Chrome Extension (MV3) + httpx/Playwright 定向爬虫 |
-| 工具链 | uv / pnpm / pytest |
+| 后端 | Java 21 + Spring Boot + **Spring AI** + Spring Data JPA + Maven 多模块 |
+| 数据库 | PostgreSQL 16 + **pgvector**（向量检索）+ tsvector 全文检索 + Flyway |
+| AI | Spring AI 多模型路由（Claude / DeepSeek / Kimi）+ **MCP Server**（官方 Java SDK） |
+| 采集 | Chrome Extension (MV3) + Jsoup/Playwright 定向爬虫 |
+| 工具链 | Maven / pnpm / JUnit 5 + Testcontainers / docker-compose |
+
+> 选型说明：后端刻意采用与作者既有 Python 项目（FastAPI/SQLite）不同的企业级栈——目标雇主（军工研究所/运营商/银行）以 Java/Spring 为主流，详见 docs/architecture.md ADR-0。
 
 ## 文档导航
 
@@ -41,6 +44,7 @@ JobRadar 通过「多源采集 + 统一岗位库 + 投递看板 + AI 匹配 Agen
 | [docs/data-model.md](docs/data-model.md) | 数据模型 ER 图、建表 DDL、状态机 |
 | [docs/api-design.md](docs/api-design.md) | REST API 接口定义与示例 |
 | [docs/agent-design.md](docs/agent-design.md) | Agent 与 MCP Server 详细设计 |
+| [docs/target-sources.md](docs/target-sources.md) | 目标企业清单（军工所/运营商/银行）与爬虫源 |
 | [docs/roadmap.md](docs/roadmap.md) | 开发路线图与里程碑 |
 
 ## 快速开始

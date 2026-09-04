@@ -2,6 +2,7 @@
 
 | 版本 | 日期 | 状态 |
 |---|---|---|
+| v0.2 | 2026-09-04 | 技术栈切换 Java/Spring（ADR-0），任务描述同步 |
 | v0.1 | 2026-09-03 | 初稿 |
 
 起点：2026-09-03（秋招进行中）。原则：**每周都有可用交付，Week 1 结束即开始真实使用**，后续边用边迭代。
@@ -12,9 +13,9 @@
 
 **目标**：替代手工备忘录，所有投递进系统。
 
-- [ ] 项目骨架：uv + pyproject、packages/core（models/schemas/config/database）、FastAPI 启动
-- [ ] 数据模型落地：`create_all` 建表 + FTS5 触发器
-- [ ] API：jobs CRUD + 手动录入/粘贴导入（先纯文本，LLM 解析可后置）+ applications 流转 + events
+- [ ] 项目骨架：Maven 多模块（core/app/mcp-server）、docker-compose 起 pgvector、Flyway 首次迁移、Spring Boot 启动
+- [ ] 数据模型落地：JPA Entity + Flyway V1__init.sql（含 tsvector 生成列、pgvector 索引）
+- [ ] API：jobs CRUD + 手动录入/粘贴导入（先纯文本，LLM 解析 W2 接入）+ applications 流转 + events
 - [ ] API：dashboard/summary + dashboard/calendar
 - [ ] 前端骨架：Vite + Tailwind + shadcn/ui + 路由 + API client
 - [ ] 前端页面：岗位库（表格+搜索筛选）、看板（拖拽流转）、岗位详情、日历
@@ -24,20 +25,20 @@
 
 ### Week 2（09.10–09.16）：采集与匹配 —— AI 能力进场
 
-- [ ] LLM Provider 抽象 + DeepSeek/Claude 实现 + 任务路由
-- [ ] JD 文本导入接 LLM 结构化（ingest 完整版）
-- [ ] 简历上传 + PDF 解析 + ResumeProfile 确认编辑页
-- [ ] 匹配 Agent v1（粗筛+精评）+ 岗位详情页匹配报告展示
+- [ ] Spring AI 多模型接入（DeepSeek/Claude）+ 任务路由配置 + token 记账
+- [ ] JD 文本导入接 LLM 结构化（ingest 完整版，entity(JobRequirements.class)）
+- [ ] 简历上传 + PDFBox 解析 + ResumeProfile 确认编辑页
+- [ ] 匹配 Agent v1（pgvector 粗筛 + LLM 精评）+ 岗位详情页匹配报告展示
 - [ ] Chrome 插件 v1：popup 表单 + 当前页信息提取 + 推送本地 API
-- [ ] Alembic 迁移机制引入
+- [ ] Testcontainers 集成测试基线（核心流转用例在真实 PG 上跑）
 
 **验收**：插件在 BOSS/牛客/某国企官网各收藏 1 个真实岗位成功入库；上传真实简历完成解析；对 5 个岗位出匹配报告，人工判断结论合理。
 
 ### Week 3（09.17–09.23）：发现引擎 —— 解决信息盲区
 
-- [ ] 爬虫框架（调度/抓取/解析/清洗/去重管线）
-- [ ] 站点适配：国聘网 + 牛客校招 + 3–5 个目标研究所/国企官网（按个人目标清单）
-- [ ] 每日推荐管线（APScheduler）+ Dashboard 今日推荐区 + 反馈闭环
+- [ ] 爬虫框架（调度/抓取(Jsoup)/解析/清洗/去重管线）
+- [ ] 站点适配按 [target-sources.md](target-sources.md) §7 顺序：国聘网 + 牛客校招 + 航空工业/航天系平台 + 运营商银行官网
+- [ ] 每日推荐管线（@Scheduled）+ Dashboard 今日推荐区 + 反馈闭环
 - [ ] 投递规划：公司分级 + 周目标 + 计划 vs 实际视图
 - [ ] 语义搜索上线
 
@@ -45,7 +46,7 @@
 
 ### Week 4（09.24–09.30）：MCP 与打磨 —— 简历亮点封装
 
-- [ ] MCP Server：10 个 tools + resources + prep_interview prompt，接入 Claude Desktop 联调
+- [ ] MCP Server：Spring AI MCP Starter，10 个 tools + resources + prep_interview prompt，接入 Claude Desktop 联调
 - [ ] 周报 Agent
 - [ ] Dashboard 图表完善（漏斗图/趋势图/类型分布）
 - [ ] 打磨：加载态/空态/错误处理；README 完善 + 演示录屏 + 架构图美化
@@ -71,10 +72,12 @@
 
 | 风险 | 概率 | 影响 | 应对 |
 |---|---|---|---|
-| 爬虫目标站改版/反爬升级 | 中 | 某源失效 | 源插件化配置，单源失败隔离；先跑通 3 个源即可 |
+| Java/Spring AI 熟练度不足拖慢开发 | 中 | W1–W2 进度 | AI 辅助全栈实现 + 遵循 Spring 官方指南；同时视为银行/国企 Java 面试的实战备战，面试话术同步积累 |
+| Spring AI / MCP Starter 版本变动（生态较新） | 中 | 个别 API 不兼容 | 锁定初始化时稳定版本；遇 breaking change 以官方迁移指南为准并记 ADR |
+| 爬虫目标站改版/反爬升级 | 中 | 某源失效 | 源插件化配置，单源失败隔离；先跑通国聘+牛客即可 |
 | LLM 结构化输出不稳定 | 中 | 解析失败 | schema 校验+重试+降级人工录入（422 流程） |
 | 秋招事务挤占开发时间 | 高 | 进度延后 | W1 后已可用；后续周目标可砍半，P2 功能让位 |
-| LLM 调用成本超预期 | 低 | 费用 | 成本控制闸（每日限额）+ 粗筛先行 |
+| LLM 调用成本超预期 | 低 | 费用 | 成本闸（每日限额）+ 粗筛先行 |
 | Chrome 插件提取规则不适配某站 | 中 | 收藏信息不全 | 提取失败降级为「原始文本粘贴」+ LLM 清洗兜底 |
 | 简历隐私顾虑 | 低 | — | 本地存储 + 脱敏开关（发送 LLM 前隐去姓名电话） |
 
