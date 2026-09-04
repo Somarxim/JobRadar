@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { STAGE_META } from '@/lib/labels'
 import { cn } from '@/lib/utils'
+import { AlarmClock, ListTodo, TrendingUp } from 'lucide-react'
 
 /** 仪表盘：漏斗数字卡 + 本周进展 + DDL 倒计时 + 待办（roadmap W1 验收页） */
 export default function DashboardPage() {
@@ -44,22 +45,25 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* 本周进展 */}
+        {/* 投递进展：累计投递 = 当前处于「已投递/笔试/面试/Offer」阶段的申请数（在途有效投递）。
+            不再显示拍脑袋的默认周目标——数字直接来自状态统计，与用户实际操作一一对应。
+            rejected/withdrawn 不计入：它们是已归档的终态，不代表有效投递。 */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">本周进展</CardTitle>
+            <CardTitle className="text-base flex items-center gap-1.5">
+              <TrendingUp className="size-4 text-blue-500" />投递进展
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">投递目标</span>
-              <span className="font-medium">{week.applied} / {week.goal}</span>
+            <div className="flex justify-between items-baseline">
+              <span className="text-muted-foreground">累计投递（在途）</span>
+              <span className="text-xl font-bold text-blue-600">
+                {(funnel.applied ?? 0) + (funnel.written_test ?? 0) + (funnel.interview ?? 0) + (funnel.offer ?? 0)}
+              </span>
             </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              {/* 达标后进度条变绿：用颜色传达「目标完成」的正反馈 */}
-              <div
-                className={cn('h-full transition-all', week.applied >= week.goal && week.goal > 0 ? 'bg-emerald-500' : 'bg-primary')}
-                style={{ width: `${Math.min(100, (week.applied / Math.max(week.goal, 1)) * 100)}%` }}
-              />
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">本周新投递</span>
+              <span className="font-medium">{week.applied}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">本周新增岗位</span>
@@ -75,7 +79,9 @@ export default function DashboardPage() {
         {/* DDL 倒计时 */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">DDL 倒计时</CardTitle>
+            <CardTitle className="text-base flex items-center gap-1.5">
+              <AlarmClock className="size-4 text-red-500" />DDL 倒计时
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {deadlines.length === 0 && <p className="text-sm text-muted-foreground">暂无临近截止的岗位</p>}
@@ -95,7 +101,9 @@ export default function DashboardPage() {
         {/* 待办 */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">待办事项</CardTitle>
+            <CardTitle className="text-base flex items-center gap-1.5">
+              <ListTodo className="size-4 text-amber-500" />待办事项
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {actions.length === 0 && <p className="text-sm text-muted-foreground">暂无待办，去岗位库收藏几个目标吧</p>}

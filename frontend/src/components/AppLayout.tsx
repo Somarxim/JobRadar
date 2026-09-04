@@ -13,9 +13,10 @@ const NAV = [
 export default function AppLayout() {
   return (
     <div className="flex min-h-screen">
-      <aside className="w-52 shrink-0 border-r bg-card flex flex-col">
+      {/* 深色侧边栏 + 白色内容区：经典 dashboard 配色，摆脱全站灰白的压抑感 */}
+      <aside className="w-52 shrink-0 bg-slate-900 flex flex-col">
         {/* 品牌区：主色方块 + 图标，形成视觉锚点 */}
-        <div className="flex items-center gap-2 px-4 h-14 border-b font-semibold">
+        <div className="flex items-center gap-2 px-4 h-14 font-semibold text-white">
           <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Radar className="size-4" />
           </span>
@@ -32,7 +33,7 @@ export default function AppLayout() {
                   'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
                   isActive
                     ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
                 )
               }
             >

@@ -41,18 +41,21 @@
   --card-foreground: oklch(0.141 0.005 285.823);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
-  --primary-foreground: oklch(0.985 0 0);
+  /* 主色：蓝色系（shadcn blue 主题），替换原 zinc 近黑色。
+     按钮/导航选中态/进度条/链接等所有引用 primary 的位置一并变色 */
+  --primary: oklch(0.488 0.243 264.376);
+  --primary-foreground: oklch(0.984 0.003 247.858);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
+  /* muted/accent 带极淡的蓝调，避免纯灰的压抑感 */
+  --muted: oklch(0.968 0.007 264);
   --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
+  --accent: oklch(0.955 0.015 264);
   --accent-foreground: oklch(0.21 0.006 285.885);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.552 0.016 285.938);
+  --ring: oklch(0.623 0.214 259.815);
 }
 
 .dark {
@@ -62,8 +65,9 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
+  /* 深色模式主色用亮蓝，与浅色模式同色相不同明度 */
+  --primary: oklch(0.623 0.214 259.815);
+  --primary-foreground: oklch(0.984 0.003 247.858);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
@@ -73,7 +77,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.552 0.016 285.938);
+  --ring: oklch(0.623 0.214 259.815);
 }
 
 @layer base {

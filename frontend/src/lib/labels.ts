@@ -15,6 +15,26 @@ export const STAGE_META: Record<Stage, { label: string; className: string; dot: 
 export const STAGES = Object.keys(STAGE_META) as Stage[]
 
 /**
+ * 主线阶段的推进顺序（回退检测用）：collected → planned → applied → written_test → interview → offer。
+ * rejected/withdrawn 是终态归档动作，从任何阶段流转过去都不算「回退」，故不参与排序。
+ */
+export const STAGE_ORDER: Partial<Record<Stage, number>> = {
+  collected: 0,
+  planned: 1,
+  applied: 2,
+  written_test: 3,
+  interview: 4,
+  offer: 5,
+}
+
+/** 是否为主线上的回退流转（如 面试→笔试）。回退往往意味着流程已结束，前端会弹确认并建议归档 */
+export function isRollback(from: Stage, to: Stage): boolean {
+  const f = STAGE_ORDER[from]
+  const t = STAGE_ORDER[to]
+  return f !== undefined && t !== undefined && t < f
+}
+
+/**
  * 公司类型：中文名 + 展示色，集中维护（单一事实源）。
  * 面试可讲点：展示层字典与后端枚举解耦——后端只存英文枚举值，
  * 颜色/文案变更不动契约、不迁数据；新增类型只需在此加一行。
