@@ -1,0 +1,80 @@
+/**
+ * API client：fetch 薄封装。
+ * - 开发环境经 vite proxy 同源访问 /api（Origin=localhost:5173，后端受信源放行，无需 token）
+ * - 错误体约定 {"detail": "..."}，解析后抛出带中文信息的 Error
+ */
+import type {
+  ApplicationCard,
+  BoardResponse,
+  CalendarEvent,
+  DashboardSummary,
+  EventItem,
+  JobDetail,
+  JobSummary,
+  PageResponse,
+  Stage,
+} from './types'
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
+    ...init,
+  })
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      /* 非 JSON 错误体，用状态行 */
+    }
+    throw new Error(detail)
+  }
+  return res.json() as Promise<T>
+}
+
+export interface JobQuery {
+  q?: string
+  company_type?: string
+  city?: string
+  stage?: string
+  tier?: string
+  deadline_before?: string
+  sort?: string
+  page?: number
+  size?: number
+}
+
+function qs(params: Record<string, string | number | undefined>): string {
+  const sp = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== '') sp.set(k, String(v))
+  }
+  const s = sp.toString()
+  return s ? `?${s}` : ''
+}
+
+export const api = {
+  // Jobs
+  listJobs: (q: JobQuery) => request<PageResponse<JobSummary>>(`/api/jobs${qs({ ...q })}`),
+  getJob: (id: number) => request<JobDetail>(`/api/jobs/${id}`),
+  createJob: (body: Record<string, unknown>) =>
+    request<JobDetail>('/api/jobs', { method: 'POST', body: JSON.stringify(body) }),
+  ingestJob: (body: Record<string, unknown>) =>
+    request<{ job_id: number; already_exists: boolean; warnings: string[] }>(
+      '/api/jobs/ingest', { method: 'POST', body: JSON.stringify(body) }),
+
+  // Applications
+  board: () => request<BoardResponse>('/api/applications'),
+  createApplication: (body: { job_id: number; stage?: Stage; priority?: number; notes?: string }) =>
+    request<ApplicationCard>('/api/applications', { method: 'POST', body: JSON.stringify(body) }),
+  transition: (id: number, body: { to_stage: Stage; note?: string; channel?: string }) =>
+    request<{ application: unknown; events: EventItem[] }>(
+      `/api/applications/${id}/stage`, { method: 'POST', body: JSON.stringify(body) }),
+  events: (id: number) => request<EventItem[]>(`/api/applications/${id}/events`),
+
+  // Dashboard
+  summary: () => request<DashboardSummary>('/api/dashboard/summary'),
+  calendar: (month: string) =>
+    request<{ events: CalendarEvent[] }>(`/api/dashboard/calendar?month=${month}`),
+}
