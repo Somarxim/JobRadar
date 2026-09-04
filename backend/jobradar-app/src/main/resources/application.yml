@@ -1,0 +1,41 @@
+server:
+  port: 8080
+  # 仅监听回环地址：本地单用户应用，不暴露到局域网（architecture.md §6）
+  address: 127.0.0.1
+
+spring:
+  application:
+    name: jobradar-app
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jobradar}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+
+  jpa:
+    hibernate:
+      # validate：schema 的唯一事实来源是 Flyway 迁移脚本，Hibernate 只做校验不做变更。
+      # 教学点：生产项目绝不用 create/update——实体改动与库表漂移会失控。
+      ddl-auto: validate
+    # 关闭 OSIV：强制在 Service 事务边界内完成懒加载，避免"View 层隐式挂数据库连接"
+    # 这一经典性能陷阱（N+1 与连接耗尽的常见根因，面试高频）。
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  jackson:
+    default-property-inclusion: non_null
+
+# 应用自定义配置段（@ConfigurationProperties 在后续提交中绑定）
+jobradar:
+  security:
+    # Chrome 插件调用本地 API 的校验令牌（防其他网页恶意 POST），见 api-design.md §3
+    local-token: ${JOBRADAR_LOCAL_TOKEN:dev-only-token-change-me}
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+  # LLM 路由配置在 W2 接入 Spring AI 时开启（agent-design.md §1.2）

@@ -1,0 +1,23 @@
+# JobRadar 本地基础设施。用法：docker compose -f deploy/docker-compose.yml up -d
+services:
+  db:
+    # pgvector 官方镜像 = PostgreSQL 16 + vector 扩展预装（ADR-1/ADR-4）
+    image: pgvector/pgvector:pg16
+    container_name: jobradar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jobradar
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres   # 本地开发专用；不入库的敏感项才走环境变量
+    ports:
+      - "127.0.0.1:5432:5432"       # 仅绑定回环地址
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jobradar"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
