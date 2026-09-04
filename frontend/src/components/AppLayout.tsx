@@ -14,8 +14,11 @@ export default function AppLayout() {
   return (
     <div className="flex min-h-screen">
       <aside className="w-52 shrink-0 border-r bg-card flex flex-col">
+        {/* 品牌区：主色方块 + 图标，形成视觉锚点 */}
         <div className="flex items-center gap-2 px-4 h-14 border-b font-semibold">
-          <Radar className="size-5" />
+          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <Radar className="size-4" />
+          </span>
           JobRadar
         </div>
         <nav className="flex-1 p-2 space-y-1">
@@ -39,7 +42,8 @@ export default function AppLayout() {
           ))}
         </nav>
       </aside>
-      <main className="flex-1 min-w-0 p-6">
+      {/* 内容区铺浅灰底，让白色卡片从背景中「浮」出来，增加层次 */}
+      <main className="flex-1 min-w-0 p-6 bg-muted/30">
         <Outlet />
       </main>
     </div>

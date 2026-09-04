@@ -5,6 +5,7 @@ import type { DashboardSummary } from '@/api/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { STAGE_META } from '@/lib/labels'
+import { cn } from '@/lib/utils'
 
 /** 仪表盘：漏斗数字卡 + 本周进展 + DDL 倒计时 + 待办（roadmap W1 验收页） */
 export default function DashboardPage() {
@@ -24,18 +25,22 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">秋招全景</h1>
 
-      {/* 漏斗数字卡 */}
+      {/* 漏斗数字卡：阶段徽章复用 STAGE_META 配色，与看板/表格语义一致 */}
       <div className="grid grid-cols-4 gap-3 xl:grid-cols-8">
-        {Object.entries(funnel).map(([stage, count]) => (
-          <Card key={stage} className="py-3 gap-0">
-            <CardContent className="px-4">
-              <div className="text-2xl font-bold">{count}</div>
-              <div className="text-xs text-muted-foreground">
-                {STAGE_META[stage as keyof typeof STAGE_META]?.label ?? stage}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {Object.entries(funnel).map(([stage, count]) => {
+          const meta = STAGE_META[stage as keyof typeof STAGE_META]
+          return (
+            <Card key={stage} className="py-3 gap-0">
+              <CardContent className="px-4 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className={cn('size-2 rounded-full', meta?.dot ?? 'bg-zinc-300')} />
+                  <span className="text-2xl font-bold">{count}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">{meta?.label ?? stage}</div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -50,8 +55,9 @@ export default function DashboardPage() {
               <span className="font-medium">{week.applied} / {week.goal}</span>
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
+              {/* 达标后进度条变绿：用颜色传达「目标完成」的正反馈 */}
               <div
-                className="h-full bg-primary transition-all"
+                className={cn('h-full transition-all', week.applied >= week.goal && week.goal > 0 ? 'bg-emerald-500' : 'bg-primary')}
                 style={{ width: `${Math.min(100, (week.applied / Math.max(week.goal, 1)) * 100)}%` }}
               />
             </div>
