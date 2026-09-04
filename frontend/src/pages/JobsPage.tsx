@@ -11,8 +11,10 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { COMPANY_TYPE_LABELS, STAGE_META, fmtDate } from '@/lib/labels'
+import { COMPANY_TYPE_LABELS, COMPANY_TYPE_META, STAGE_META, deadlineClass, fmtDate } from '@/lib/labels'
+import { cn } from '@/lib/utils'
 import JobCreateDialog from '@/components/JobCreateDialog'
+import JobEditDialog from '@/components/JobEditDialog'
 import IngestDialog from '@/components/IngestDialog'
 import { STAGES } from '@/lib/labels'
 
@@ -99,12 +101,15 @@ export default function JobsPage() {
             <TableHead>DDL</TableHead>
             <TableHead>阶段</TableHead>
             <TableHead>来源</TableHead>
+            <TableHead className="w-12">操作</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data?.items.map((j) => (
             <TableRow key={j.id} className="cursor-pointer">
               <TableCell className="font-medium">
+                {/* 公司类型色点：低成本增加表格色彩层次，颜色语义与详情页徽章一致 */}
+                <span className={cn('mr-1.5 inline-block size-2 rounded-full align-middle', COMPANY_TYPE_META[j.company.company_type]?.dot ?? 'bg-zinc-300')} />
                 <Link to={`/jobs/${j.id}`} className="hover:underline">{j.company.name}</Link>
               </TableCell>
               <TableCell className="max-w-72 truncate">
@@ -112,18 +117,22 @@ export default function JobsPage() {
               </TableCell>
               <TableCell>{j.city ?? '—'}</TableCell>
               <TableCell>{j.salary_range ?? '—'}</TableCell>
-              <TableCell>{fmtDate(j.deadline)}</TableCell>
+              {/* DDL 按紧急度着色：≤3 天红 / ≤7 天橙 / 过期删除线（阈值集中在 labels.ts） */}
+              <TableCell className={deadlineClass(j.deadline)}>{fmtDate(j.deadline)}</TableCell>
               <TableCell>
                 {j.application_stage
                   ? <Badge className={STAGE_META[j.application_stage].className}>{STAGE_META[j.application_stage].label}</Badge>
                   : <span className="text-muted-foreground text-xs">未收藏</span>}
               </TableCell>
               <TableCell className="text-muted-foreground text-xs">{j.source_platform}</TableCell>
+              <TableCell>
+                <JobEditDialog jobId={j.id} onDone={load} iconOnly />
+              </TableCell>
             </TableRow>
           ))}
           {data && data.items.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                 暂无岗位，点击右上角「手动录入」或「粘贴导入」添加
               </TableCell>
             </TableRow>
