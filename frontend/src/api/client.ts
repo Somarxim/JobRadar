@@ -60,6 +60,9 @@ export const api = {
   getJob: (id: number) => request<JobDetail>(`/api/jobs/${id}`),
   createJob: (body: Record<string, unknown>) =>
     request<JobDetail>('/api/jobs', { method: 'POST', body: JSON.stringify(body) }),
+  // PATCH 语义：不传/传 null 的字段后端保持原值（dirty checking），故空字符串需先转 null
+  updateJob: (id: number, body: Record<string, unknown>) =>
+    request<JobDetail>(`/api/jobs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   ingestJob: (body: Record<string, unknown>) =>
     request<{ job_id: number; already_exists: boolean; warnings: string[] }>(
       '/api/jobs/ingest', { method: 'POST', body: JSON.stringify(body) }),
