@@ -5,5 +5,10 @@ package com.jobradar.core.domain;
  * W3 推荐管线的反馈闭环依赖该字段统计采纳率。
  */
 public enum RecommendationStatus {
-    PENDING, ACCEPTED, IGNORED
+    PENDING, ACCEPTED, IGNORED;
+
+    @com.fasterxml.jackson.annotation.JsonValue
+    public String toJson() {
+        return name().toLowerCase(java.util.Locale.ROOT);
+    }
 }

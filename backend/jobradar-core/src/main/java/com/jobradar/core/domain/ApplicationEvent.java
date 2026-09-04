@@ -11,7 +11,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
 
@@ -42,7 +41,8 @@ public class ApplicationEvent {
 
     private String note;
 
-    @CreationTimestamp
+    // 不用 @CreationTimestamp：补录历史投递时 Service 要显式回写 occurred_at（api-design §2.3），
+    // 而 @CreationTimestamp 会在插入时无条件覆盖。默认 now()，Service 按需覆盖。
     @Column(nullable = false, updatable = false)
-    private Instant createdAt;
+    private Instant createdAt = Instant.now();
 }
