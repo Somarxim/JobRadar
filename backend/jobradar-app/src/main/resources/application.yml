@@ -30,6 +30,11 @@ spring:
 
   jackson:
     default-property-inclusion: non_null
+    # API 契约统一 snake_case（api-design.md），全局策略免去逐字段 @JsonProperty
+    property-naming-strategy: SNAKE_CASE
+    mapper:
+      # 契约里枚举是小写（"applied"），宽容反序列化为 Java 大写常量（APPLIED）
+      accept-case-insensitive-enums: true
 
 # 应用自定义配置段（@ConfigurationProperties 在后续提交中绑定）
 jobradar:
