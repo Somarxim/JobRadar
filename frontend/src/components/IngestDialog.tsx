@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import {
@@ -17,31 +18,33 @@ import { ClipboardPaste } from 'lucide-react'
  */
 export default function IngestDialog({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [warnings, setWarnings] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState({ company: '', title: '', city: '', url: '', raw_text: '' })
+  const [form, setForm] = useState({ company: '', title: '', city: '', url: '', deadline: '', raw_text: '' })
 
   async function submit() {
     setSubmitting(true)
-    setError(null)
     try {
       const res = await api.ingestJob({
         source: 'manual_paste',
         url: form.url || undefined,
         raw_text: form.raw_text,
-        hints: { company: form.company, title: form.title, city: form.city || undefined },
+        hints: {
+          company: form.company,
+          title: form.title,
+          city: form.city || undefined,
+          deadline: form.deadline || undefined,
+        },
       })
-      setWarnings(res.warnings)
-      if (!res.already_exists) {
-        setOpen(false)
-        setForm({ company: '', title: '', city: '', url: '', raw_text: '' })
-        onDone()
-      } else {
-        setError('该岗位已存在（已去重），无需重复导入')
+      if (res.already_exists) {
+        toast.warning('该岗位已存在（已去重），无需重复导入')
+        return
       }
+      toast.success('导入成功' + (res.warnings.length ? `：${res.warnings.join('；')}` : ''))
+      setOpen(false)
+      setForm({ company: '', title: '', city: '', url: '', deadline: '', raw_text: '' })
+      onDone()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      toast.error(e instanceof Error ? e.message : String(e))
     } finally {
       setSubmitting(false)
     }
@@ -68,10 +71,14 @@ export default function IngestDialog({ onDone }: { onDone: () => void }) {
               <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="grid gap-1.5">
               <Label>城市</Label>
               <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>投递截止</Label>
+              <Input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
             </div>
             <div className="grid gap-1.5">
               <Label>来源链接</Label>
@@ -82,8 +89,6 @@ export default function IngestDialog({ onDone }: { onDone: () => void }) {
             <Label>JD 全文</Label>
             <Textarea rows={6} value={form.raw_text} onChange={(e) => setForm({ ...form, raw_text: e.target.value })} />
           </div>
-          {warnings.length > 0 && <p className="text-sm text-amber-600">{warnings.join('；')}</p>}
-          {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={submitting || !form.company.trim() || !form.title.trim()}>
@@ -94,3 +99,4 @@ export default function IngestDialog({ onDone }: { onDone: () => void }) {
     </Dialog>
   )
 }
+

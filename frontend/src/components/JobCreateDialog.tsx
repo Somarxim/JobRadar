@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import {
@@ -41,6 +42,7 @@ export default function JobCreateDialog({ onDone }: { onDone: () => void }) {
       })
       setOpen(false)
       setForm({ company_name: '', title: '', city: '', salary_range: '', deadline: '', jd_text: '', company_type: 'other' })
+      toast.success('岗位已保存')
       onDone()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
