@@ -39,6 +39,15 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!-- Lombok：编译期生成 getter/setter，消除实体样板代码。optional=true 不向下游传递
+             （下游模块拿到的是编译好的 class，无需 Lombok）。刻意只用 @Getter/@Setter 不用 @Data，
+             原因见 Company 类注释。面试点：Lombok 是编译期注解处理（改 AST），
+             Spring 是运行期代理，二者完全不同层面。 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
 
         <!-- Spring AI 的 chat/embedding starter 在 W2 接入匹配 Agent 时引入；
              过早引入会导致未配置 API Key 时应用启动失败 -->
