@@ -14,8 +14,9 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { CHANNEL_LABELS, STAGE_META, STAGES, fmtDateTime } from '@/lib/labels'
+import { CHANNEL_LABELS, STAGE_META, STAGES, fmtDateTime, isRollback } from '@/lib/labels'
 import { cn } from '@/lib/utils'
+import TransitionConfirmDialog, { type RollbackRequest } from '@/components/TransitionConfirmDialog'
 
 /**
  * 投递看板：每列一个阶段，拖拽卡片跨列即触发状态流转 API。
@@ -25,6 +26,7 @@ export default function BoardPage() {
   const [groups, setGroups] = useState<Record<Stage, ApplicationCard[]> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingApplied, setPendingApplied] = useState<{ appId: number; title: string } | null>(null)
+  const [rollbackReq, setRollbackReq] = useState<(RollbackRequest & { appId: number }) | null>(null)
   const [channel, setChannel] = useState('official')
   const [submitting, setSubmitting] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -53,13 +55,26 @@ export default function BoardPage() {
     const title = ev.active.data.current?.title as string | undefined
     const fromStage = ev.active.data.current?.stage as Stage | undefined
     const toStage = ev.over?.id as Stage | undefined
-    if (!appId || !toStage || fromStage === toStage) return
+    if (!appId || !toStage || !fromStage || fromStage === toStage) return
 
     if (toStage === 'applied') {
+      // 契约要求 applied 必带渠道：先弹渠道选择框
       setPendingApplied({ appId, title: title ?? '' })
+    } else if (isRollback(fromStage, toStage)) {
+      // 主线回退（如 面试→笔试）：弹确认框，引导用户考虑归档
+      setRollbackReq({ appId, fromStage, toStage })
     } else {
       doTransition(appId, toStage)
     }
+  }
+
+  /** 回退确认框选择：rollback=按原计划回退；rejected/withdrawn=改为归档终态 */
+  function onRollbackChoose(choice: 'rollback' | 'rejected' | 'withdrawn') {
+    if (!rollbackReq) return
+    const target = choice === 'rollback' ? rollbackReq.toStage : choice
+    const appId = rollbackReq.appId
+    setRollbackReq(null)
+    doTransition(appId, target)
   }
 
   if (error) return <p className="text-destructive">加载失败：{error}</p>
@@ -105,6 +120,14 @@ export default function BoardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 回退流转确认框 */}
+      <TransitionConfirmDialog
+        request={rollbackReq}
+        submitting={submitting}
+        onChoose={onRollbackChoose}
+        onCancel={() => setRollbackReq(null)}
+      />
     </div>
   )
 }
@@ -121,7 +144,10 @@ function Column({ stage, cards }: { stage: Stage; cards: ApplicationCard[] }) {
       )}
     >
       <div className="flex items-center justify-between px-1">
-        <span className="text-sm font-medium">{meta.label}</span>
+        <span className="flex items-center gap-1.5 text-sm font-medium">
+          <span className={cn('size-2 rounded-full', meta.dot)} />
+          {meta.label}
+        </span>
         <Badge variant="secondary">{cards.length}</Badge>
       </div>
       {cards.map((c) => (
