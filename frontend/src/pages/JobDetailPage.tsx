@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { api } from '@/api/client'
 import type { EventItem, JobDetail, Stage } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
@@ -10,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { COMPANY_TYPE_LABELS, STAGE_META, STAGES, fmtDate, fmtDateTime } from '@/lib/labels'
+import { CHANNEL_LABELS, COMPANY_TYPE_LABELS, STAGE_META, STAGES, fmtDate, fmtDateTime } from '@/lib/labels'
 import { ArrowLeft } from 'lucide-react'
 
 /** 岗位详情：完整 JD + 投递状态 + 阶段流转 + 事件时间线 */
@@ -23,7 +24,7 @@ export default function JobDetailPage() {
   const [toStage, setToStage] = useState<Stage>('planned')
   const [channel, setChannel] = useState('')
   const [note, setNote] = useState('')
-  const [msg, setMsg] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const load = useCallback(() => {
     api.getJob(jobId).then((j) => {
@@ -39,28 +40,34 @@ export default function JobDetailPage() {
   useEffect(load, [load])
 
   async function collect() {
-    setMsg(null)
+    setSubmitting(true)
     try {
       await api.createApplication({ job_id: jobId })
+      toast.success('已收藏到看板')
       load()
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e))
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
     }
   }
 
   async function doTransition() {
     if (!job?.application) return
-    setMsg(null)
+    setSubmitting(true)
     try {
       await api.transition(job.application.id, {
         to_stage: toStage,
         note: note || undefined,
         channel: channel || undefined,
       })
+      toast.success(`已流转到「${STAGE_META[toStage].label}」`)
       setNote('')
       load()
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e))
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -126,8 +133,8 @@ export default function JobDetailPage() {
                     <Select value={channel} onValueChange={setChannel}>
                       <SelectTrigger className="w-36"><SelectValue placeholder="选择渠道" /></SelectTrigger>
                       <SelectContent>
-                        {['official', 'boss', 'niuke', 'email', 'referral', 'campus_talk'].map((c) => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        {Object.entries(CHANNEL_LABELS).map(([v, l]) => (
+                          <SelectItem key={v} value={v}>{l}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -137,16 +144,19 @@ export default function JobDetailPage() {
                   <Label>备注</Label>
                   <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="可选" />
                 </div>
-                <Button onClick={doTransition}>流转</Button>
+                <Button onClick={doTransition} disabled={submitting || (toStage === 'applied' && !channel)}>
+                  {submitting ? '提交中…' : '流转'}
+                </Button>
               </div>
             </>
           ) : (
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground">尚未收藏该岗位</span>
-              <Button size="sm" onClick={collect}>收藏</Button>
+              <Button size="sm" onClick={collect} disabled={submitting}>
+                {submitting ? '收藏中…' : '收藏'}
+              </Button>
             </div>
           )}
-          {msg && <p className="text-sm text-destructive">{msg}</p>}
         </CardContent>
       </Card>
 
