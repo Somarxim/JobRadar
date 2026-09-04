@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.jobradar</groupId>
+        <artifactId>jobradar-backend</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <!-- MCP 宿主模块（W4 实现）：以 stdio 暴露 core 的 service 能力给 Claude Desktop。
+         当前为占位骨架，保证多模块结构从一开始就成立 -->
+    <artifactId>jobradar-mcp-server</artifactId>
+    <name>jobradar-mcp-server</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.jobradar</groupId>
+            <artifactId>jobradar-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- W4 引入：org.springframework.ai:spring-ai-starter-mcp-server（stdio 传输）。
+             artifact 坐标以届时官方文档为准（Spring AI 1.x 里程碑间曾有调整） -->
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

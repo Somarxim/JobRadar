@@ -8,6 +8,11 @@ venv/
 .ruff_cache/
 .mypy_cache/
 
+# Java / Maven
+target/
+*.class
+!.mvn/wrapper/maven-wrapper.jar
+
 # Node
 node_modules/
 dist/
