@@ -8,5 +8,10 @@ public enum CrawlCategory {
     OPERATOR,            // 运营商
     BANK,                // 银行
     SOE_OTHER,           // 其他央国企
-    COMMUNITY            // 社区（牛客校招等）
+    COMMUNITY;           // 社区（牛客校招等）
+
+    @com.fasterxml.jackson.annotation.JsonValue
+    public String toJson() {
+        return name().toLowerCase(java.util.Locale.ROOT);
+    }
 }
