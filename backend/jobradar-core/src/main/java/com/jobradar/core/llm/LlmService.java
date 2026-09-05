@@ -190,6 +190,55 @@ public class LlmService {
         return Optional.ofNullable(visionModel);
     }
 
+    /**
+     * 简历文本 → ResumeProfile 结构化档案（复用 parse 模型：抽取式任务，文本模型足够，
+     * 无需动用更贵的视觉模型）。失败返回 Optional.empty()，调用方保留原文待人工/重试。
+     */
+    public Optional<ParsedResume> parseResume(String resumeText) {
+        if (parseModel == null) {
+            return Optional.empty();
+        }
+        var converter = new BeanOutputConverter<>(ParsedResume.class);
+        String prompt = """
+                你是简历解析助手。请从下面的简历文本中提取结构化信息。
+
+                要求：
+                - name：候选人姓名，无则 null
+                - education：教育经历列表，每项含 school/degree（本科/硕士/博士）/major/period
+                  （如"2022.09-2026.06"）；is985/is211 按公开高校名单推断 true/false
+                - skills：技能关键词列表（语言、框架、工具，去重）
+                - experiences：经历列表，每项含 type（internship|project|competition|research）、
+                  org、role、period、highlights（量化成果要点，每条一句话）
+                - target_positions：意向岗位列表（简历中明确写了才提取，否则空列表）
+                - target_cities：意向城市列表（同上）
+                - awards：获奖/证书列表，无则空列表
+                - summary：用 2-3 句话概括候选人画像（学历、技术栈、亮点）
+                - 除上述 JSON 外不要输出任何其他内容
+                %s
+
+                简历文本：
+                ---
+                %s
+                ---
+                """.formatted(converter.getFormat(), resumeText);
+
+        long start = System.currentTimeMillis();
+        try {
+            ChatResponse resp = parseModel.call(new Prompt(prompt,
+                    OpenAiChatOptions.builder().model(parseConfig.model())
+                            .temperature(PARSE_TEMPERATURE).build()));
+            ParsedResume parsed = converter.convert(resp.getResult().getOutput().getText());
+            recordUsage("resume_parse", parseConfig.model(), resp.getMetadata().getUsage(),
+                    true, null, elapsed(start));
+            return Optional.ofNullable(parsed);
+        } catch (Exception e) {
+            log.warn("简历解析失败: {}", e.getMessage());
+            recordUsage("resume_parse", parseConfig.model(), null, false,
+                    truncate(e.getMessage()), elapsed(start));
+            return Optional.empty();
+        }
+    }
+
     public LlmModelConfig visionConfig() {
         return visionConfig;
     }

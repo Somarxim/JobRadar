@@ -12,6 +12,8 @@ import type {
   JobDetail,
   JobSummary,
   PageResponse,
+  ResumeDetail,
+  ResumeSummary,
   Stage,
 } from './types'
 
@@ -80,4 +82,28 @@ export const api = {
   summary: () => request<DashboardSummary>('/api/dashboard/summary'),
   calendar: (month: string) =>
     request<{ events: CalendarEvent[] }>(`/api/dashboard/calendar?month=${month}`),
+
+  // Resumes
+  listResumes: () => request<{ items: ResumeSummary[] }>('/api/resumes'),
+  getResume: (id: number) => request<ResumeDetail>(`/api/resumes/${id}`),
+  // multipart 上传不能走 request()——它会强设 Content-Type: application/json，
+  // 而 FormData 必须由浏览器自动生成带 boundary 的 multipart 头
+  uploadResume: async (file: File): Promise<ResumeDetail> => {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch('/api/resumes', { method: 'POST', body: fd })
+    if (!res.ok) {
+      let detail = `${res.status} ${res.statusText}`
+      try {
+        const body = await res.json()
+        if (body?.detail) detail = body.detail
+      } catch { /* 非 JSON 错误体 */ }
+      throw new Error(detail)
+    }
+    return res.json() as Promise<ResumeDetail>
+  },
+  reparseResume: (id: number) =>
+    request<ResumeDetail>(`/api/resumes/${id}/reparse`, { method: 'POST' }),
+  setDefaultResume: (id: number) =>
+    request<ResumeDetail>(`/api/resumes/${id}/default`, { method: 'PATCH' }),
 }
