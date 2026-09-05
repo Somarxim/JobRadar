@@ -26,8 +26,9 @@ public record JobRadarProperties(Security security, Cors cors, Llm llm, Storage 
      * LLM 模型路由（agent-design.md §1.2）：
      * parse=文本结构化解析（DeepSeek，中文好、便宜）；vision=多模态（DashScope qwen-vl，海报图片）。
      * key 为空即未启用，对应能力优雅降级（ingest 回到 hints 必填）。
+     * dailyTokenLimit=每日 token 成本闸（null 不限），超闸后所有 LLM 任务拒发并记失败账。
      */
-    public record Llm(LlmModelConfig parse, LlmModelConfig vision) {
+    public record Llm(LlmModelConfig parse, LlmModelConfig vision, Long dailyTokenLimit) {
     }
 
     /** 本地文件存储：简历 PDF 原件目录（单用户本地应用，直接落文件系统，默认值见 application.yml） */
