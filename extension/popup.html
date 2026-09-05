@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    /* 与前端一致的 zinc/blue 风格（手写，避免插件引入构建链） */
+    * { box-sizing: border-box; margin: 0; }
+    body { width: 380px; padding: 14px; font: 13px/1.6 -apple-system, "PingFang SC", sans-serif; color: #18181b; }
+    h1 { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    h1 .dot { width: 8px; height: 8px; border-radius: 50%; background: #2563eb; }
+    label { display: block; font-size: 12px; color: #71717a; margin: 8px 0 3px; }
+    input, textarea, select {
+      width: 100%; padding: 6px 8px; border: 1px solid #e4e4e7; border-radius: 6px;
+      font: inherit; background: #fff;
+    }
+    input:focus, textarea:focus { outline: 2px solid #2563eb33; border-color: #2563eb; }
+    textarea { resize: vertical; }
+    .row { display: flex; gap: 8px; } .row > div { flex: 1; }
+    button {
+      width: 100%; margin-top: 12px; padding: 8px; border: 0; border-radius: 6px;
+      background: #2563eb; color: #fff; font: inherit; font-weight: 500; cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: default; }
+    button.ghost { background: #fff; color: #2563eb; border: 1px solid #2563eb; margin-top: 8px; }
+    #status { margin-top: 10px; font-size: 12px; padding: 8px; border-radius: 6px; display: none; }
+    #status.ok { display: block; background: #ecfdf5; color: #047857; }
+    #status.err { display: block; background: #fef2f2; color: #b91c1c; }
+    #status a { color: #2563eb; }
+    details { margin-top: 10px; font-size: 12px; color: #71717a; }
+    summary { cursor: pointer; }
+    .hint { font-size: 11px; color: #a1a1aa; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <h1><span class="dot"></span>收藏到 JobRadar</h1>
+
+  <div class="row">
+    <div>
+      <label>公司（留空由 AI 提取）</label>
+      <input id="company" placeholder="自动提取">
+    </div>
+    <div>
+      <label>岗位（留空由 AI 提取）</label>
+      <input id="title" placeholder="自动提取">
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>城市</label>
+      <input id="city">
+    </div>
+    <div>
+      <label>投递截止</label>
+      <input id="deadline" type="date">
+    </div>
+  </div>
+
+  <label>JD 文本（自动抓取当前页，可编辑）</label>
+  <textarea id="rawText" rows="8"></textarea>
+  <p class="hint">提示：在页面上选中一段文字再点插件图标，会优先抓取选中内容。</p>
+
+  <button id="save">AI 解析并入库</button>
+  <div id="status"></div>
+
+  <details>
+    <summary>设置（本地 API 令牌）</summary>
+    <label>X-Local-Token（与后端 application.yml 的 jobradar.security.local-token 一致）</label>
+    <input id="token" type="password" placeholder="dev-only-token-change-me">
+    <button id="saveToken" class="ghost">保存令牌</button>
+  </details>
+
+  <script src="popup.js"></script>
+</body>
+</html>
