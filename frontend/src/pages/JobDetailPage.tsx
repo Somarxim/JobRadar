@@ -22,7 +22,7 @@ import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react'
 
 /**
  * 岗位详情布局（按用户反馈调整）：
- * - 左主栏（2/3）：投递状态（高频操作置顶）→ 职位描述（内容主体）→ 岗位信息
+ * - 左主栏（2/3）：岗位信息（高度稳定，概览置顶）→ 投递状态 → 职位描述（高度不定，放最后）
  * - 右侧边栏（1/3）：AI 匹配报告占位（固定高度，在上）→ 流转记录（高度不定，在下，
  *   避免记录变长把匹配报告顶出首屏）
  */
@@ -138,8 +138,54 @@ export default function JobDetailPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3 items-start">
-        {/* 左主栏：投递状态 → 职位描述 → 岗位信息 */}
+        {/* 左主栏：岗位信息 → 投递状态 → 职位描述（JD 高度不定，放最后） */}
         <div className="space-y-4 lg:col-span-2 min-w-0">
+          {/* 关键信息：定义列表样式，高度稳定，置顶作为概览 */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">岗位信息</CardTitle></CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-2 sm:grid-cols-[5rem_1fr_5rem_1fr] gap-y-2 gap-x-4 text-sm">
+                <dt className="text-muted-foreground">公司</dt>
+                <dd className="flex items-center gap-1.5">
+                  <span className={cn('size-2 rounded-full', typeMeta?.dot)} />
+                  {job.company.name}
+                </dd>
+                <dt className="text-muted-foreground">公司类型</dt>
+                <dd>{typeMeta?.label}</dd>
+                <dt className="text-muted-foreground">城市</dt>
+                <dd>{job.city ?? '—'}</dd>
+                <dt className="text-muted-foreground">薪资</dt>
+                <dd>{job.salary_range ?? '—'}</dd>
+                <dt className="text-muted-foreground">投递截止</dt>
+                <dd className={deadlineClass(job.deadline)}>
+                  {fmtDate(job.deadline)}
+                  {job.deadline && <span className="ml-1 text-xs">（{deadlineCountdown(job.deadline)}）</span>}
+                </dd>
+                <dt className="text-muted-foreground">发布日期</dt>
+                <dd>{fmtDate(job.publish_date)}</dd>
+                <dt className="text-muted-foreground">来源</dt>
+                <dd>{job.source_platform}</dd>
+                <dt className="text-muted-foreground">收录时间</dt>
+                <dd>{fmtDate(job.created_at)}</dd>
+                {job.source_url && (
+                  <>
+                    <dt className="text-muted-foreground">链接</dt>
+                    <dd className="sm:col-span-3">
+                      <a
+                        href={job.source_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline break-all"
+                      >
+                        查看原帖<ExternalLink className="size-3" />
+                      </a>
+                    </dd>
+                  </>
+                )}
+              </dl>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">投递状态</CardTitle>
@@ -210,52 +256,6 @@ export default function JobDetailPage() {
               {job.jd_text
                 ? <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed">{job.jd_text}</pre>
                 : <p className="text-sm text-muted-foreground">暂无 JD，可点击右上角「编辑」补充</p>}
-            </CardContent>
-          </Card>
-
-          {/* 关键信息：定义列表样式，把原先散落在头部的字段收拢成一栏 */}
-          <Card>
-            <CardHeader><CardTitle className="text-base">岗位信息</CardTitle></CardHeader>
-            <CardContent>
-              <dl className="grid grid-cols-2 sm:grid-cols-[5rem_1fr_5rem_1fr] gap-y-2 gap-x-4 text-sm">
-                <dt className="text-muted-foreground">公司</dt>
-                <dd className="flex items-center gap-1.5">
-                  <span className={cn('size-2 rounded-full', typeMeta?.dot)} />
-                  {job.company.name}
-                </dd>
-                <dt className="text-muted-foreground">公司类型</dt>
-                <dd>{typeMeta?.label}</dd>
-                <dt className="text-muted-foreground">城市</dt>
-                <dd>{job.city ?? '—'}</dd>
-                <dt className="text-muted-foreground">薪资</dt>
-                <dd>{job.salary_range ?? '—'}</dd>
-                <dt className="text-muted-foreground">投递截止</dt>
-                <dd className={deadlineClass(job.deadline)}>
-                  {fmtDate(job.deadline)}
-                  {job.deadline && <span className="ml-1 text-xs">（{deadlineCountdown(job.deadline)}）</span>}
-                </dd>
-                <dt className="text-muted-foreground">发布日期</dt>
-                <dd>{fmtDate(job.publish_date)}</dd>
-                <dt className="text-muted-foreground">来源</dt>
-                <dd>{job.source_platform}</dd>
-                <dt className="text-muted-foreground">收录时间</dt>
-                <dd>{fmtDate(job.created_at)}</dd>
-                {job.source_url && (
-                  <>
-                    <dt className="text-muted-foreground">链接</dt>
-                    <dd className="sm:col-span-3">
-                      <a
-                        href={job.source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-primary hover:underline break-all"
-                      >
-                        查看原帖<ExternalLink className="size-3" />
-                      </a>
-                    </dd>
-                  </>
-                )}
-              </dl>
             </CardContent>
           </Card>
         </div>
