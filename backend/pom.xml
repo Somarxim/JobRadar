@@ -34,6 +34,9 @@
         <!-- Spring AI 独立版本列车（不随 Boot 父 POM 管理），通过 BOM 导入 -->
         <spring-ai.version>1.0.0</spring-ai.version>
         <pdfbox.version>3.0.3</pdfbox.version>
+        <!-- Testcontainers 覆盖为新版：Boot 3.5 管理的 1.21.0 内置 docker-java 用老 API 版本
+             访问 Docker 29 daemon 被 400 拒绝（实测），1.21.3 修复了版本协商 -->
+        <testcontainers.version>1.21.3</testcontainers.version>
     </properties>
 
     <dependencyManagement>
