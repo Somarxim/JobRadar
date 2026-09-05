@@ -13,7 +13,7 @@ import java.util.List;
  * 配合 spring-boot-configuration-processor 还能生成配置元数据（yml 里自动补全）。
  */
 @ConfigurationProperties(prefix = "jobradar")
-public record JobRadarProperties(Security security, Cors cors, Llm llm) {
+public record JobRadarProperties(Security security, Cors cors, Llm llm, Storage storage) {
 
     public record Security(String localToken) {
     }
@@ -28,5 +28,9 @@ public record JobRadarProperties(Security security, Cors cors, Llm llm) {
      * key 为空即未启用，对应能力优雅降级（ingest 回到 hints 必填）。
      */
     public record Llm(LlmModelConfig parse, LlmModelConfig vision) {
+    }
+
+    /** 本地文件存储：简历 PDF 原件目录（单用户本地应用，直接落文件系统，默认值见 application.yml） */
+    public record Storage(String resumeDir) {
     }
 }

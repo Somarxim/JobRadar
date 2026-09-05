@@ -28,6 +28,12 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  servlet:
+    multipart:
+      # 简历 PDF 上传上限 10MB（Spring 默认仅 1MB，简历普遍 1-5MB 会被误拒）
+      max-file-size: 10MB
+      max-request-size: 11MB
+
   ai:
     model:
       # 模型全部由 LlmConfig 显式构造（多供应商路由、key 缺省降级），
@@ -67,3 +73,6 @@ jobradar:
       base-url: https://dashscope.aliyuncs.com/compatible-mode   # Spring AI 会自动拼 /v1/chat/completions，勿带 /v1
       api-key: ${DASHSCOPE_API_KEY:}
       model: qwen-vl-plus
+  # 本地文件存储：简历 PDF 原件目录（~ 展开由 ResumeService 处理）
+  storage:
+    resume-dir: ${JOBRADAR_RESUME_DIR:~/.jobradar/resumes}

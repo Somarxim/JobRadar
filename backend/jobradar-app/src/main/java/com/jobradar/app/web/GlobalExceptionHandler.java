@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -49,6 +50,12 @@ public class GlobalExceptionHandler {
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         return build(HttpStatus.BAD_REQUEST, detail.isBlank() ? "参数校验失败" : detail);
+    }
+
+    /** multipart 超限：容器在进 Controller 前就拒绝，统一翻译为契约错误体 */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, String>> uploadTooLarge(MaxUploadSizeExceededException e) {
+        return build(HttpStatus.BAD_REQUEST, "文件超过大小上限（简历 ≤10MB）");
     }
 
     private ResponseEntity<Map<String, String>> build(HttpStatus status, String detail) {
