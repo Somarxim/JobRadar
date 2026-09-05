@@ -12,13 +12,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import JobEditDialog from '@/components/JobEditDialog'
+import MatchReportCard from '@/components/MatchReportCard'
 import TransitionConfirmDialog, { type RollbackRequest } from '@/components/TransitionConfirmDialog'
 import {
   CHANNEL_LABELS, COMPANY_TYPE_META, STAGE_META, STAGES,
   deadlineClass, deadlineCountdown, fmtDate, fmtDateTime, isRollback,
 } from '@/lib/labels'
 import { cn } from '@/lib/utils'
-import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react'
+import { ArrowLeft, ExternalLink } from 'lucide-react'
 
 /**
  * 岗位详情布局（按用户反馈调整）：
@@ -262,19 +263,7 @@ export default function JobDetailPage() {
 
         {/* 右侧边栏：AI 匹配报告（固定高度在上）→ 流转记录（高度不定在下） */}
         <div className="space-y-4">
-          {/* AI 匹配报告占位：W2 接入 Spring AI 后在此渲染，先占位稳定布局 */}
-          <Card className="border-dashed border-violet-200 bg-violet-50/40">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-1.5">
-                <Sparkles className="size-4 text-violet-500" />AI 匹配报告
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                W2 将接入 AI：上传简历后自动分析与该岗位的匹配度、缺口与投递建议。
-              </p>
-            </CardContent>
-          </Card>
+          <MatchReportCard jobId={jobId} report={job.latest_match_report} onGenerated={load} />
 
           <Card>
             <CardHeader><CardTitle className="text-base">流转记录</CardTitle></CardHeader>

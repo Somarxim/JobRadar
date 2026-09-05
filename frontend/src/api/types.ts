@@ -51,7 +51,42 @@ export interface JobDetail extends Omit<JobSummary, 'application_stage' | 'match
   publish_date?: string
   active: boolean
   application?: ApplicationCard
-  latest_match_report?: unknown
+  latest_match_report?: MatchReport
+}
+
+// ---------- 匹配报告（schema 见 docs/agent-design.md §3.3） ----------
+
+export interface HardCheck {
+  item: string
+  resume_value: string
+  passed: boolean
+  note: string
+}
+
+export interface MatchDetail {
+  hard_checks: HardCheck[]
+  hard_pass: boolean
+  score_total: number
+  /** 键固定为 skill / experience / fit（prompt 约束） */
+  score_breakdown: Record<string, number>
+  matched_skills: string[]
+  missing_skills: string[]
+  highlights: string[]
+  suggestion: string
+  one_liner: string
+}
+
+export interface MatchReport {
+  id: number
+  job_id: number
+  resume_id: number
+  score_total: number
+  detail: MatchDetail
+  model_used: string
+  prompt_version: string
+  /** true = 24h 缓存命中（未新调 LLM） */
+  cached?: boolean
+  created_at: string
 }
 
 export interface PageResponse<T> {
