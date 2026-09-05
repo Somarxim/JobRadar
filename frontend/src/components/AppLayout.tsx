@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Briefcase, CalendarDays, KanbanSquare, LayoutDashboard, Radar } from 'lucide-react'
+import { Briefcase, CalendarDays, FileUser, KanbanSquare, LayoutDashboard, Radar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -7,6 +7,7 @@ const NAV = [
   { to: '/jobs', label: '岗位库', icon: Briefcase },
   { to: '/board', label: '投递看板', icon: KanbanSquare },
   { to: '/calendar', label: '日历', icon: CalendarDays },
+  { to: '/resumes', label: '简历', icon: FileUser },
 ]
 
 /** 全局布局：左侧导航 + 右侧内容区（React Router Outlet 渲染子路由） */
