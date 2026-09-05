@@ -189,13 +189,18 @@ public class JobService {
         String city = hints != null ? trimToNull(hints.city()) : null;
         String salary = hints != null ? trimToNull(hints.salaryRange()) : null;
         LocalDate deadline = hints != null ? hints.deadline() : null;
+        String posterJdText = null;
 
         if (company == null || title == null) {
-            if (req.rawText() == null || req.rawText().isBlank()) {
+            boolean hasText = req.rawText() != null && !req.rawText().isBlank();
+            boolean hasImage = req.imageBase64() != null && !req.imageBase64().isBlank();
+            if (!hasText && !hasImage) {
                 throw new UnprocessableException(
-                        "缺少 JD 原文（raw_text），无法自动解析，请手动填写 company/title");
+                        "缺少 JD 原文（raw_text）或海报图片（image_base64），无法自动解析，请手动填写公司/岗位");
             }
-            var parsed = llmService.parseJd(req.rawText());
+            // 文本优先于图片（更准更便宜）；图片走多模态海报解析
+            var parsed = hasText ? llmService.parseJd(req.rawText())
+                    : llmService.parsePoster(req.imageBase64(), req.imageMediaType());
             if (parsed.isEmpty()) {
                 throw new UnprocessableException(
                         "AI 解析不可用或失败，请手动填写公司/岗位，或使用 POST /jobs 人工录入");
@@ -207,6 +212,10 @@ public class JobService {
             if (city == null) city = trimToNull(p.city());
             if (salary == null) salary = trimToNull(p.salaryRange());
             if (deadline == null) deadline = parseDateLenient(p.deadline(), "deadline", warnings);
+            // 海报路径：模型整理的 jd_text 作为 JD 存档（海报本身没有文字层）
+            if (!hasText && p.jdText() != null) {
+                posterJdText = p.jdText();
+            }
             warnings.add("公司/岗位由 AI 提取，请人工复核");
         }
         if (company == null || title == null) {
@@ -229,7 +238,8 @@ public class JobService {
         Job job = new Job();
         job.setCompany(companyEntity);
         job.setTitle(title);
-        job.setJdText(req.rawText() == null ? "" : req.rawText());
+        job.setJdText(req.rawText() != null && !req.rawText().isBlank() ? req.rawText()
+                : posterJdText != null ? posterJdText : "");
         job.setCity(city);
         job.setSalaryRange(salary);
         // 插件来源记 extension，粘贴记 manual（source 取值见 api-design §2.2）

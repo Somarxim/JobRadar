@@ -29,7 +29,7 @@
 
 - [x] Spring AI 多模型接入（DeepSeek 文本解析 + DashScope qwen-vl 视觉，OpenAI 兼容协议路由）+ token 记账（llm_usage 表）
 - [x] JD 文本导入接 LLM 结构化（ingest hints 可选，手填优先 AI 补全；JobRequirements 结构化并入匹配 Agent 切片）
-- [ ] **海报图片导入**：多模态模型（视觉理解）提取图片中的岗位信息——大量研究所/国企只在公众号发海报大图，无文字可提取。ingest 端点扩展 image 输入（base64/文件），优先多模态直读，OCR（如 PaddleOCR）作为低成本备选（用户反馈 2026-09-04）
+- [x] **海报图片导入**：ingest 扩展 image_base64 输入，qwen-vl-plus 多模态直读（版式+文字+JD 整理一体），失败降级 422 人工兜底。已实现并联调通至模型端点；当前 DashScope 免费额度耗尽，待充值/换模型后可用（2026-09-05 实测 403 FreeTierOnly，降级与失败记账路径已验证）
 - [ ] 简历上传 + PDFBox 解析 + ResumeProfile 确认编辑页
 - [ ] 匹配 Agent v1（pgvector 粗筛 + LLM 精评）+ 岗位详情页匹配报告展示
 - [ ] Chrome 插件 v1：popup 表单 + 当前页信息提取 + 推送本地 API

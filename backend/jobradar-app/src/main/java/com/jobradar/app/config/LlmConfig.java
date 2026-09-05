@@ -4,6 +4,7 @@ import com.jobradar.core.llm.LlmService;
 import com.jobradar.core.repository.LlmUsageRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * LLM 装配：按配置手工构造 LlmService（多模型实例，不走 spring.ai 自动装配）。
@@ -13,7 +14,8 @@ import org.springframework.context.annotation.Configuration;
 public class LlmConfig {
 
     @Bean
-    public LlmService llmService(LlmUsageRepository usageRepository, JobRadarProperties props) {
-        return new LlmService(usageRepository, props.llm().parse(), props.llm().vision());
+    public LlmService llmService(LlmUsageRepository usageRepository, PlatformTransactionManager txManager,
+                                 JobRadarProperties props) {
+        return new LlmService(usageRepository, txManager, props.llm().parse(), props.llm().vision());
     }
 }
