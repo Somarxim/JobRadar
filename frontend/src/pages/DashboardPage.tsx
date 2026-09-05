@@ -56,7 +56,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between items-baseline">
-              <span className="text-muted-foreground">累计投递（在途）</span>
+              <span className="text-muted-foreground">累计投递（流程中）</span>
               <span className="text-xl font-bold text-blue-600">
                 {(funnel.applied ?? 0) + (funnel.written_test ?? 0) + (funnel.interview ?? 0) + (funnel.offer ?? 0)}
               </span>
