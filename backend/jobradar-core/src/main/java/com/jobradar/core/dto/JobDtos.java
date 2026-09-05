@@ -30,13 +30,13 @@ public final class JobDtos {
                              Integer matchScore, String applicationStage, Instant createdAt) {
     }
 
-    /** 详情（GET /jobs/{id}）：含完整 JD 与投递状态；latestMatchReport 为 W2 字段 */
+    /** 详情（GET /jobs/{id}）：含完整 JD、投递状态与最新匹配报告（无报告时 null） */
     public record JobDetail(Long id, CompanyBrief company, String title, String jdText,
                             String jdSummary, String requirements, String city, String salaryRange,
                             String sourcePlatform, String sourceUrl, LocalDate publishDate,
                             LocalDate deadline, boolean active,
                             ApplicationDtos.ApplicationCard application,
-                            Object latestMatchReport, Instant createdAt) {
+                            MatchDtos.MatchReportView latestMatchReport, Instant createdAt) {
     }
 
     /** 手动录入（POST /jobs）。公司按名查复用，不存在则新建 */

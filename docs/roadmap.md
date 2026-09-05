@@ -2,6 +2,7 @@
 
 | 版本 | 日期 | 状态 |
 |---|---|---|
+| v0.6 | 2026-09-05 | W2-4 完成：匹配 Agent v1（LLM 精评 + 报告落库 + 详情页展示） |
 | v0.5 | 2026-09-05 | W2-3 完成：简历上传 + PDFBox 解析 + ResumeProfile 结构化档案（匹配 Agent 数据前置） |
 | v0.4 | 2026-09-05 | W2-1 完成：LLM 接入（DeepSeek 解析 + qwen-vl 视觉路由）+ token 记账 + JD 免 hints 导入 |
 | v0.3 | 2026-09-04 | W2 新增海报图片多模态导入（用户反馈：研究所公众号招聘多为海报大图） |
@@ -32,7 +33,7 @@
 - [x] JD 文本导入接 LLM 结构化（ingest hints 可选，手填优先 AI 补全；JobRequirements 结构化并入匹配 Agent 切片）
 - [x] **海报图片导入**：ingest 扩展 image_base64 输入，qwen-vl-plus 多模态直读（版式+文字+JD 整理一体），失败降级 422 人工兜底。已实现并联调通至模型端点；当前 DashScope 免费额度耗尽，待充值/换模型后可用（2026-09-05 实测 403 FreeTierOnly，降级与失败记账路径已验证）
 - [x] 简历上传 + PDFBox 解析 + ResumeProfile 确认页（上传/列表/详情/reparse/默认切换 + AI 档案确认弹窗；字段级人工编辑留待匹配联调时补）
-- [ ] 匹配 Agent v1（pgvector 粗筛 + LLM 精评）+ 岗位详情页匹配报告展示
+- [x] 匹配 Agent v1（LLM 精评 + 24h 缓存 + 服务端规则兜底；pgvector 粗筛随 W3 规模场景上线）+ 岗位详情页匹配报告展示
 - [ ] Chrome 插件 v1：popup 表单 + 当前页信息提取 + 推送本地 API
 - [ ] Testcontainers 集成测试基线（核心流转用例在真实 PG 上跑）
 

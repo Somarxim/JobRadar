@@ -4,12 +4,13 @@ import com.jobradar.core.domain.LlmUsage;
 import com.jobradar.core.repository.LlmUsageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.content.Media;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
@@ -21,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.MimeTypeUtils;
 
 import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -48,6 +50,11 @@ public class LlmService {
 
     /** JD 解析任务的低温度：抽取式任务要确定性，不要创造性 */
     private static final double PARSE_TEMPERATURE = 0.1;
+
+    /** 当前 parse 模型名（match_reports.model_used 落库用，效果回溯） */
+    public String parseModelName() {
+        return parseConfig.model();
+    }
 
     private final LlmUsageRepository usageRepository;
     private final PlatformTransactionManager txManager;
@@ -188,6 +195,88 @@ public class LlmService {
     /** 视觉模型（海报图片解析，W2 后续切片接入） */
     public Optional<OpenAiChatModel> visionModel() {
         return Optional.ofNullable(visionModel);
+    }
+
+    /** 匹配评估的 prompt 版本：改 prompt 时递增，match_reports 落库可回溯对比效果（A/B 叙事点） */
+    public static final String MATCH_PROMPT_VERSION = "match-v1";
+
+    /** JD 原文截断上限：超长 JD 截断防 token 爆炸（设计文档 §4：截断 3000 字） */
+    private static final int JD_MAX_CHARS = 3000;
+
+    /**
+     * 匹配精评：岗位上下文 + JD 原文 + ResumeProfile JSON → MatchDetail。
+     * 质量敏感任务：解析/校验失败重试 1 次（附上次错误让模型自我修正），仍失败返回
+     * Optional.empty() 由调用方 422 降级。
+     */
+    public Optional<MatchDetail> evaluateMatch(String jobHeader, String jdText, String resumeProfileJson) {
+        if (parseModel == null) {
+            return Optional.empty();
+        }
+        var converter = new BeanOutputConverter<>(MatchDetail.class);
+        String jd = jdText == null ? "" : jdText.strip();
+        if (jd.length() > JD_MAX_CHARS) {
+            jd = jd.substring(0, JD_MAX_CHARS) + "\n……（原文过长已截断）";
+        }
+        String systemPrompt = """
+                你是一位资深校招求职顾问，熟悉军工研究所、央国企、银行的校园招聘惯例。
+                请根据「岗位信息 + JD 原文」与「候选人简历档案」评估匹配度。
+
+                评估要求：
+                - hard_checks 必须逐条核对硬性条件：学历层次、专业对口、应届身份、
+                  工作地点，以及 JD 中出现的政治面貌/保密要求（如"能适应封闭管理"）/
+                  性别或年龄限制等，每一条给出简历对应情况与是否通过
+                - 先输出 hard_checks 再打分：hard_pass=false 时 score_total 不得超过 39，
+                  且 one_liner 必须点明未满足的硬性条件
+                - 打分维度：技能重合 40 分 + 经历契合 40 分 + 综合契合 20 分
+                  （含城市匹配、公司类型与候选人意向的契合度），score_total 为三项之和；
+                  score_breakdown 的键固定为英文：skill / experience / fit
+                - 分数锚点：≥85 强匹配必投 / 70-84 推荐 / 55-69 可投 / <55 不推荐
+                - matched_skills/missing_skills 与简历技能同词表（用简历中的写法）
+                - highlights 引用简历中最契合的 2-3 个经历要点
+                - suggestion 给出明确投递建议：是否建议投递 + 简历侧重点 + 注意事项
+                - 除 JSON 外不要输出任何其他内容
+                %s
+                """.formatted(converter.getFormat());
+        String userPrompt = """
+                【岗位信息】
+                %s
+
+                【JD 原文】
+                ---
+                %s
+                ---
+
+                【候选人简历档案（结构化 JSON）】
+                ---
+                %s
+                ---
+                """.formatted(jobHeader, jd, resumeProfileJson);
+
+        // 失败重试 1 次：结构化输出任务偶发 JSON 截断/格式漂移，重试命中率很高
+        String lastError = null;
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            long start = System.currentTimeMillis();
+            try {
+                String user = lastError == null ? userPrompt
+                        : userPrompt + "\n（上次你的输出解析失败：" + lastError + "，请严格按 JSON Schema 重新输出）";
+                ChatResponse resp = parseModel.call(new Prompt(
+                        List.of(new SystemMessage(systemPrompt), new UserMessage(user)),
+                        OpenAiChatOptions.builder().model(parseConfig.model())
+                                .temperature(PARSE_TEMPERATURE).build()));
+                MatchDetail detail = converter.convert(resp.getResult().getOutput().getText());
+                if (detail == null || detail.scoreTotal() == null) {
+                    throw new IllegalStateException("模型输出缺少 score_total");
+                }
+                recordUsage("match_eval", parseConfig.model(), resp.getMetadata().getUsage(),
+                        true, null, elapsed(start));
+                return Optional.of(detail);
+            } catch (Exception e) {
+                lastError = truncate(e.getMessage());
+                log.warn("匹配评估第 {} 次尝试失败: {}", attempt, e.getMessage());
+                recordUsage("match_eval", parseConfig.model(), null, false, lastError, elapsed(start));
+            }
+        }
+        return Optional.empty();
     }
 
     /**

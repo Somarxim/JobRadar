@@ -11,6 +11,7 @@ import type {
   EventItem,
   JobDetail,
   JobSummary,
+  MatchReport,
   PageResponse,
   ResumeDetail,
   ResumeSummary,
@@ -83,9 +84,15 @@ export const api = {
   calendar: (month: string) =>
     request<{ events: CalendarEvent[] }>(`/api/dashboard/calendar?month=${month}`),
 
+  // Match（同步接口，一次 LLM 调用 3-10s，调用方需 loading 态）
+  matchJob: (jobId: number, resumeId?: number) =>
+    request<MatchReport>(`/api/match/jobs/${jobId}`, {
+      method: 'POST',
+      body: JSON.stringify(resumeId ? { resume_id: resumeId } : {}),
+    }),
+
   // Resumes
-  listResumes: () => request<{ items: ResumeSummary[] }>('/api/resumes'),
-  getResume: (id: number) => request<ResumeDetail>(`/api/resumes/${id}`),
+  listResumes: () => request<{ items: ResumeSummary[] }>('/api/resumes'),  getResume: (id: number) => request<ResumeDetail>(`/api/resumes/${id}`),
   // multipart 上传不能走 request()——它会强设 Content-Type: application/json，
   // 而 FormData 必须由浏览器自动生成带 boundary 的 multipart 头
   uploadResume: async (file: File): Promise<ResumeDetail> => {
