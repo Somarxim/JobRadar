@@ -91,7 +91,7 @@ public class DashboardService {
                 .toList();
 
         List<NextActionItem> nextActions = applicationRepository
-                .findByNextActionAtNotNullOrderByNextActionAt().stream()
+                .findByJobActiveTrueAndNextActionAtNotNullOrderByNextActionAt().stream()
                 .limit(UPCOMING_LIMIT)
                 .map(a -> new NextActionItem(a.getId(), a.getJob().getCompany().getName(),
                         a.getNextAction(), a.getNextActionAt()))
@@ -126,11 +126,11 @@ public class DashboardService {
                 .forEach(j -> events.add(new CalendarEvent(j.getDeadline(), "deadline",
                         j.getCompany().getName() + " " + j.getTitle() + " 投递截止", j.getId(), null)));
 
-        applicationRepository.findByPlannedAtBetween(first, last)
+        applicationRepository.findByJobActiveTrueAndPlannedAtBetween(first, last)
                 .forEach(a -> events.add(new CalendarEvent(a.getPlannedAt(), "planned",
                         "计划投递：" + a.getJob().getCompany().getName(), a.getJob().getId(), a.getId())));
 
-        for (Application a : applicationRepository.findByNextActionAtBetween(monthStart, monthEnd)) {
+        for (Application a : applicationRepository.findByJobActiveTrueAndNextActionAtBetween(monthStart, monthEnd)) {
             Job j = a.getJob();
             String type = switch (a.getStage()) {
                 case WRITTEN_TEST -> "written_test";

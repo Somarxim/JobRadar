@@ -56,7 +56,7 @@ public class ApplicationService {
         for (ApplicationStage stage : ApplicationStage.values()) {
             groups.put(stage.name().toLowerCase(java.util.Locale.ROOT), new java.util.ArrayList<>());
         }
-        applicationRepository.findAll().stream()
+        applicationRepository.findByJobActiveTrue().stream()
                 .map(this::toCard)
                 .forEach(card -> groups.get(card.stage().name().toLowerCase(java.util.Locale.ROOT))
                         .add(card));
