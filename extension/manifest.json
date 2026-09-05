@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "JobRadar 采集助手",
+  "version": "0.1.0",
+  "description": "一键把当前招聘页面收藏进本地 JobRadar（JD 自动结构化入库）。",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://localhost:8080/*", "http://127.0.0.1:8080/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "收藏到 JobRadar"
+  }
+}
