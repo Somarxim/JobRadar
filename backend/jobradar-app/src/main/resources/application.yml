@@ -28,6 +28,19 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  ai:
+    model:
+      # 模型全部由 LlmConfig 显式构造（多供应商路由、key 缺省降级），
+      # starter 自带的 chat/embedding/image/audio 自动装配一律关闭——
+      # 它们会在 spring.ai.openai.api-key 缺失时直接启动失败。
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+
   jackson:
     default-property-inclusion: non_null
     # API 契约统一 snake_case（api-design.md），全局策略免去逐字段 @JsonProperty
@@ -43,4 +56,14 @@ jobradar:
     local-token: ${JOBRADAR_LOCAL_TOKEN:dev-only-token-change-me}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
-  # LLM 路由配置在 W2 接入 Spring AI 时开启（agent-design.md §1.2）
+  # LLM 模型路由（agent-design.md §1.2）：OpenAI 兼容协议，换 base-url 即换供应商。
+  # key 从环境变量注入（密钥不入库不进 git）；为空则该能力降级（ingest 回到 hints 必填）。
+  llm:
+    parse:                       # JD 文本结构化：DeepSeek（中文好、便宜）
+      base-url: https://api.deepseek.com
+      api-key: ${DeepSeek_API_KEY:}
+      model: deepseek-chat
+    vision:                      # 海报图片多模态：阿里 DashScope qwen-vl（W2 后续切片接入）
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      api-key: ${DASHSCOPE_API_KEY:}
+      model: qwen-vl-plus

@@ -1,5 +1,6 @@
 package com.jobradar.app.config;
 
+import com.jobradar.core.llm.LlmModelConfig;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
@@ -12,12 +13,20 @@ import java.util.List;
  * 配合 spring-boot-configuration-processor 还能生成配置元数据（yml 里自动补全）。
  */
 @ConfigurationProperties(prefix = "jobradar")
-public record JobRadarProperties(Security security, Cors cors) {
+public record JobRadarProperties(Security security, Cors cors, Llm llm) {
 
     public record Security(String localToken) {
     }
 
     /** allowedOrigins 来自 yml 逗号分隔串（Spring 自动按逗号拆成 List） */
     public record Cors(List<String> allowedOrigins) {
+    }
+
+    /**
+     * LLM 模型路由（agent-design.md §1.2）：
+     * parse=文本结构化解析（DeepSeek，中文好、便宜）；vision=多模态（DashScope qwen-vl，海报图片）。
+     * key 为空即未启用，对应能力优雅降级（ingest 回到 hints 必填）。
+     */
+    public record Llm(LlmModelConfig parse, LlmModelConfig vision) {
     }
 }
