@@ -55,7 +55,13 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Spring AI 的 chat/embedding starter 在 W2 接入匹配 Agent 时引入；
-             过早引入会导致未配置 API Key 时应用启动失败 -->
+        <!-- Spring AI OpenAI 模型端：DeepSeek/DashScope 均兼容 OpenAI 协议，
+             一个 starter 换 base-url 即可路由多家模型（W2）。
+             注意：不走 spring.ai.* 自动装配——多模型实例由 app 层 LlmConfig 显式构造，
+             未配置 key 时降级而非启动失败。 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>
     </dependencies>
 </project>
