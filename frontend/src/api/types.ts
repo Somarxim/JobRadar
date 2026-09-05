@@ -103,3 +103,47 @@ export interface CalendarEvent {
   job_id?: number
   application_id?: number
 }
+
+// ---------- 简历（ResumeProfile schema 见 docs/agent-design.md §3.1） ----------
+
+export interface ResumeEducation {
+  school: string
+  degree: string
+  major: string
+  period: string
+  is985?: boolean
+  is211?: boolean
+}
+
+export interface ResumeExperience {
+  type: 'internship' | 'project' | 'competition' | 'research' | string
+  org: string
+  role: string
+  period: string
+  highlights: string[]
+}
+
+export interface ParsedResume {
+  name?: string
+  education: ResumeEducation[]
+  skills: string[]
+  experiences: ResumeExperience[]
+  target_positions: string[]
+  target_cities: string[]
+  awards: string[]
+  summary?: string
+}
+
+export interface ResumeSummary {
+  id: number
+  name: string
+  is_default: boolean
+  /** parsed=已完成结构化；pending=待解析（扫描件无文字层或 LLM 失败，可 reparse） */
+  parse_status: 'parsed' | 'pending'
+  summary?: string
+  created_at: string
+}
+
+export interface ResumeDetail extends Omit<ResumeSummary, 'summary'> {
+  parsed?: ParsedResume
+}

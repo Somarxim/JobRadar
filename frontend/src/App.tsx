@@ -6,6 +6,7 @@ import JobsPage from '@/pages/JobsPage'
 import JobDetailPage from '@/pages/JobDetailPage'
 import BoardPage from '@/pages/BoardPage'
 import CalendarPage from '@/pages/CalendarPage'
+import ResumesPage from '@/pages/ResumesPage'
 
 const router = createBrowserRouter([
   {
@@ -16,6 +17,7 @@ const router = createBrowserRouter([
       { path: '/jobs/:id', element: <JobDetailPage /> },
       { path: '/board', element: <BoardPage /> },
       { path: '/calendar', element: <CalendarPage /> },
+      { path: '/resumes', element: <ResumesPage /> },
     ],
   },
 ])

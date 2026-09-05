@@ -63,5 +63,12 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
+        <!-- PDFBox：简历 PDF 文本提取（本地解析，零成本；扫描件无文字层时返回空文本，
+             由上层提示走海报式多模态/人工路线） -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>${pdfbox.version}</version>
+        </dependency>
     </dependencies>
 </project>
