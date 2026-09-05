@@ -65,6 +65,8 @@ jobradar:
   # LLM 模型路由（agent-design.md §1.2）：OpenAI 兼容协议，换 base-url 即换供应商。
   # key 从环境变量注入（密钥不入库不进 git）；为空则该能力降级（ingest 回到 hints 必填）。
   llm:
+    # 每日 token 成本闸：超闸后所有 LLM 任务拒发并记失败账（防刷/防失控；置空不限）
+    daily-token-limit: ${LLM_DAILY_TOKEN_LIMIT:200000}
     parse:                       # JD 文本结构化：DeepSeek（中文好、便宜）
       base-url: https://api.deepseek.com
       api-key: ${DeepSeek_API_KEY:}
