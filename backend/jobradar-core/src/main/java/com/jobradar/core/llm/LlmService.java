@@ -7,11 +7,20 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.content.Media;
 import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.MimeTypeUtils;
 
+import java.util.Base64;
 import java.util.Optional;
 
 /**
@@ -41,14 +50,16 @@ public class LlmService {
     private static final double PARSE_TEMPERATURE = 0.1;
 
     private final LlmUsageRepository usageRepository;
+    private final PlatformTransactionManager txManager;
     private final LlmModelConfig parseConfig;
     private final LlmModelConfig visionConfig;
     private final OpenAiChatModel parseModel;
     private final OpenAiChatModel visionModel;
 
-    public LlmService(LlmUsageRepository usageRepository,
+    public LlmService(LlmUsageRepository usageRepository, PlatformTransactionManager txManager,
                       LlmModelConfig parseConfig, LlmModelConfig visionConfig) {
         this.usageRepository = usageRepository;
+        this.txManager = txManager;
         this.parseConfig = parseConfig;
         this.visionConfig = visionConfig;
         this.parseModel = parseConfig.available() ? buildModel(parseConfig) : null;
@@ -115,6 +126,65 @@ public class LlmService {
         }
     }
 
+    /** 海报图片解析是否可用 */
+    public boolean visionAvailable() {
+        return visionModel != null;
+    }
+
+    /**
+     * 海报图片 → 结构化岗位信息（多模态视觉理解，替代 OCR：
+     * 模型同时读懂版式与文字，还能把图中信息整理成 JD 文本沉淀）。
+     * 失败返回 Optional.empty()，调用方降级人工填写。
+     */
+    public Optional<ParsedJob> parsePoster(String imageBase64, String mediaType) {
+        if (visionModel == null) {
+            return Optional.empty();
+        }
+        byte[] bytes;
+        try {
+            bytes = Base64.getDecoder().decode(imageBase64);
+        } catch (IllegalArgumentException e) {
+            log.warn("海报图片 base64 解码失败");
+            return Optional.empty();
+        }
+        var converter = new BeanOutputConverter<>(ParsedJob.class);
+        String promptText = """
+                你是招聘信息解析助手。这是一张招聘海报图片，请从中提取关键字段。
+
+                要求：
+                - company：公司/单位官方全称
+                - title：岗位名称（含校招/实习等批次后缀；多个岗位取最主要的一个）
+                - city：工作城市（多个城市取第一个）
+                - salary_range：薪资范围原文，无则 null
+                - deadline：投递截止日期，格式 yyyy-MM-dd，无则 null
+                - publish_date：发布日期，格式 yyyy-MM-dd，无则 null
+                - jd_text：把海报中与岗位相关的信息（职责、要求、福利、投递方式等）
+                  整理成连贯的中文文本，供存档检索
+                - 除上述 JSON 外不要输出任何其他内容
+                %s
+                """.formatted(converter.getFormat());
+
+        long start = System.currentTimeMillis();
+        try {
+            var media = new Media(MimeTypeUtils.parseMimeType(
+                    mediaType != null && !mediaType.isBlank() ? mediaType : "image/png"),
+                    new ByteArrayResource(bytes));
+            var msg = UserMessage.builder().text(promptText).media(media).build();
+            ChatResponse resp = visionModel.call(new Prompt(msg,
+                    OpenAiChatOptions.builder().model(visionConfig.model())
+                            .temperature(PARSE_TEMPERATURE).build()));
+            ParsedJob parsed = converter.convert(resp.getResult().getOutput().getText());
+            recordUsage("poster_parse", visionConfig.model(), resp.getMetadata().getUsage(),
+                    true, null, elapsed(start));
+            return Optional.ofNullable(parsed);
+        } catch (Exception e) {
+            log.warn("海报解析失败: {}", e.getMessage());
+            recordUsage("poster_parse", visionConfig.model(), null, false,
+                    truncate(e.getMessage()), elapsed(start));
+            return Optional.empty();
+        }
+    }
+
     /** 视觉模型（海报图片解析，W2 后续切片接入） */
     public Optional<OpenAiChatModel> visionModel() {
         return Optional.ofNullable(visionModel);
@@ -124,21 +194,28 @@ public class LlmService {
         return visionConfig;
     }
 
+    /**
+     * 记账必须独立于业务事务（REQUIRES_NEW）：调用方（如 ingest）在解析失败时抛 422 回滚，
+     * 若记账混在同一事务里，失败记录会随回滚一并丢失——而失败账恰恰是排查与成本控制的依据。
+     */
     private void recordUsage(String task, String model, Usage usage,
                              boolean success, String error, int latencyMs) {
         try {
-            LlmUsage u = new LlmUsage();
-            u.setTask(task);
-            u.setModel(model);
-            if (usage != null) {
-                u.setPromptTokens(usage.getPromptTokens());
-                u.setCompletionTokens(usage.getCompletionTokens());
-                u.setTotalTokens(usage.getTotalTokens());
-            }
-            u.setSuccess(success);
-            u.setError(error);
-            u.setLatencyMs(latencyMs);
-            usageRepository.save(u);
+            new TransactionTemplate(txManager, new DefaultTransactionDefinition(
+                    TransactionDefinition.PROPAGATION_REQUIRES_NEW)).executeWithoutResult(tx -> {
+                LlmUsage u = new LlmUsage();
+                u.setTask(task);
+                u.setModel(model);
+                if (usage != null) {
+                    u.setPromptTokens(usage.getPromptTokens());
+                    u.setCompletionTokens(usage.getCompletionTokens());
+                    u.setTotalTokens(usage.getTotalTokens());
+                }
+                u.setSuccess(success);
+                u.setError(error);
+                u.setLatencyMs(latencyMs);
+                usageRepository.save(u);
+            });
         } catch (Exception e) {
             // 记账失败不应阻断主流程
             log.warn("LLM 记账失败: {}", e.getMessage());
