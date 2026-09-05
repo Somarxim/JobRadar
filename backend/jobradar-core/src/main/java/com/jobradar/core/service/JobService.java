@@ -18,6 +18,7 @@ import com.jobradar.core.exception.BadRequestException;
 import com.jobradar.core.exception.ConflictException;
 import com.jobradar.core.exception.NotFoundException;
 import com.jobradar.core.exception.UnprocessableException;
+import com.jobradar.core.llm.LlmService;
 import com.jobradar.core.repository.ApplicationRepository;
 import com.jobradar.core.repository.CompanyRepository;
 import com.jobradar.core.repository.JobRepository;
@@ -32,6 +33,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -56,14 +58,16 @@ public class JobService {
     private final JobRepository jobRepository;
     private final CompanyRepository companyRepository;
     private final ApplicationRepository applicationRepository;
+    private final LlmService llmService;
 
     // 构造器注入（Spring 4.3+ 单构造器免 @Autowired）：
     // 字段可 final、依赖一目了然、单测 new 出来即可——比字段注入更利于可测试性
     public JobService(JobRepository jobRepository, CompanyRepository companyRepository,
-                      ApplicationRepository applicationRepository) {
+                      ApplicationRepository applicationRepository, LlmService llmService) {
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
         this.applicationRepository = applicationRepository;
+        this.llmService = llmService;
     }
 
     /**
@@ -176,13 +180,40 @@ public class JobService {
      */
     @Transactional
     public IngestResponse ingest(IngestRequest req) {
-        if (req.hints() == null) {
-            throw new UnprocessableException(
-                    "LLM 结构化解析将于 W2 上线，当前请提供 hints（company/title 必填），"
-                            + "或使用 POST /jobs 人工录入");
-        }
+        List<String> warnings = new ArrayList<>();
         var hints = req.hints();
-        String hash = DedupeHash.of(hints.company(), hints.title(), hints.city());
+
+        // 手填 hints 优先；company/title 缺省时由 LLM 从 JD 原文提取（W2）
+        String company = hints != null ? trimToNull(hints.company()) : null;
+        String title = hints != null ? trimToNull(hints.title()) : null;
+        String city = hints != null ? trimToNull(hints.city()) : null;
+        String salary = hints != null ? trimToNull(hints.salaryRange()) : null;
+        LocalDate deadline = hints != null ? hints.deadline() : null;
+
+        if (company == null || title == null) {
+            if (req.rawText() == null || req.rawText().isBlank()) {
+                throw new UnprocessableException(
+                        "缺少 JD 原文（raw_text），无法自动解析，请手动填写 company/title");
+            }
+            var parsed = llmService.parseJd(req.rawText());
+            if (parsed.isEmpty()) {
+                throw new UnprocessableException(
+                        "AI 解析不可用或失败，请手动填写公司/岗位，或使用 POST /jobs 人工录入");
+            }
+            var p = parsed.get();
+            // 合并原则：用户手填 > AI 提取（人永远是最后裁决者）
+            if (company == null) company = trimToNull(p.company());
+            if (title == null) title = trimToNull(p.title());
+            if (city == null) city = trimToNull(p.city());
+            if (salary == null) salary = trimToNull(p.salaryRange());
+            if (deadline == null) deadline = parseDateLenient(p.deadline(), "deadline", warnings);
+            warnings.add("公司/岗位由 AI 提取，请人工复核");
+        }
+        if (company == null || title == null) {
+            throw new UnprocessableException("AI 未能从 JD 中识别公司/岗位，请手动填写");
+        }
+
+        String hash = DedupeHash.of(company, title, city);
 
         var existing = jobRepository.findByDedupeHash(hash);
         if (existing.isPresent()) {
@@ -194,28 +225,52 @@ public class JobService {
                     List.of());
         }
 
-        Company company = getOrCreateCompany(hints.company(), null);
+        Company companyEntity = getOrCreateCompany(company, null);
         Job job = new Job();
-        job.setCompany(company);
-        job.setTitle(hints.title().trim());
+        job.setCompany(companyEntity);
+        job.setTitle(title);
         job.setJdText(req.rawText() == null ? "" : req.rawText());
-        job.setCity(hints.city());
-        job.setSalaryRange(hints.salaryRange());
+        job.setCity(city);
+        job.setSalaryRange(salary);
         // 插件来源记 extension，粘贴记 manual（source 取值见 api-design §2.2）
         job.setSourcePlatform("extension".equals(req.source()) ? "extension" : "manual");
         job.setSourceUrl(req.url());
-        job.setDeadline(hints.deadline());
+        job.setDeadline(deadline);
         job.setDedupeHash(hash);
         Job saved = jobRepository.save(job);
 
-        List<String> warnings = new ArrayList<>();
-        if (hints.deadline() == null) {
+        if (deadline == null) {
             warnings.add("deadline 未能从输入中识别，请人工确认");
         }
         return new IngestResponse(saved.getId(), false,
-                new IngestResponse.ParsedBrief(company.getName(), saved.getTitle(), saved.getCity(),
+                new IngestResponse.ParsedBrief(companyEntity.getName(), saved.getTitle(), saved.getCity(),
                         saved.getDeadline()),
                 warnings);
+    }
+
+    private static String trimToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    /** LLM 日期输出容错解析：ISO 优先，失败后尝试常见分隔符，仍不行则 warning 降级 */
+    private static LocalDate parseDateLenient(String raw, String field, List<String> warnings) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String s = raw.trim();
+        for (var fmt : new String[]{"yyyy-MM-dd", "yyyy/M/d", "yyyy.MM.dd", "yyyy年M月d日"}) {
+            try {
+                return LocalDate.parse(s, java.time.format.DateTimeFormatter.ofPattern(fmt));
+            } catch (Exception ignored) {
+                // 尝试下一个格式
+            }
+        }
+        warnings.add(field + " 格式未识别: " + s + "，请人工确认");
+        return null;
     }
 
     @Transactional(readOnly = true)

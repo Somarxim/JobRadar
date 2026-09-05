@@ -13,8 +13,8 @@ import { ClipboardPaste } from 'lucide-react'
 
 /**
  * 粘贴导入对话框（POST /api/jobs/ingest）。
- * W1 纯文本版：公司与岗位名需手动给出（hints），JD 全文直接粘贴；
- * W2 接入 LLM 后 hints 将由模型自动提取。
+ * W2 起公司/岗位可留空——由 LLM 从 JD 全文自动提取（后端合并策略：手填 > AI）；
+ * AI 未配置或解析失败时后端返回 422，提示改用手动填写。
  */
 export default function IngestDialog({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false)
@@ -29,8 +29,8 @@ export default function IngestDialog({ onDone }: { onDone: () => void }) {
         url: form.url || undefined,
         raw_text: form.raw_text,
         hints: {
-          company: form.company,
-          title: form.title,
+          company: form.company || undefined,
+          title: form.title || undefined,
           city: form.city || undefined,
           deadline: form.deadline || undefined,
         },
@@ -58,17 +58,17 @@ export default function IngestDialog({ onDone }: { onDone: () => void }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>粘贴导入</DialogTitle>
-          <DialogDescription>粘贴 JD 全文，填写公司与岗位名（W2 起将由 LLM 自动识别）。</DialogDescription>
+          <DialogDescription>粘贴 JD 全文即可，公司与岗位名可由 AI 自动提取（手填优先）。</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
-              <Label>公司 *</Label>
-              <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
+              <Label>公司 <span className="text-muted-foreground font-normal">（可选）</span></Label>
+              <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="留空由 AI 提取" />
             </div>
             <div className="grid gap-1.5">
-              <Label>岗位 *</Label>
-              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              <Label>岗位 <span className="text-muted-foreground font-normal">（可选）</span></Label>
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="留空由 AI 提取" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -86,13 +86,13 @@ export default function IngestDialog({ onDone }: { onDone: () => void }) {
             </div>
           </div>
           <div className="grid gap-1.5">
-            <Label>JD 全文</Label>
+            <Label>JD 全文 *</Label>
             <Textarea rows={6} value={form.raw_text} onChange={(e) => setForm({ ...form, raw_text: e.target.value })} />
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={submitting || !form.company.trim() || !form.title.trim()}>
-            {submitting ? '导入中…' : '导入'}
+          <Button onClick={submit} disabled={submitting || !form.raw_text.trim()}>
+            {submitting ? 'AI 解析中…' : '导入'}
           </Button>
         </DialogFooter>
       </DialogContent>
