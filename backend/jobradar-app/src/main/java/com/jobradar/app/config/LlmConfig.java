@@ -16,6 +16,7 @@ public class LlmConfig {
     @Bean
     public LlmService llmService(LlmUsageRepository usageRepository, PlatformTransactionManager txManager,
                                  JobRadarProperties props) {
-        return new LlmService(usageRepository, txManager, props.llm().parse(), props.llm().vision());
+        return new LlmService(usageRepository, txManager, props.llm().parse(), props.llm().vision(),
+                props.llm().dailyTokenLimit());
     }
 }

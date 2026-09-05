@@ -21,6 +21,9 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.MimeTypeUtils;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -62,24 +65,48 @@ public class LlmService {
     private final LlmModelConfig visionConfig;
     private final OpenAiChatModel parseModel;
     private final OpenAiChatModel visionModel;
+    /** 每日 token 成本闸：null = 不限。超闸后所有 LLM 调用直接拒发并记失败账 */
+    private final Long dailyTokenLimit;
 
     public LlmService(LlmUsageRepository usageRepository, PlatformTransactionManager txManager,
-                      LlmModelConfig parseConfig, LlmModelConfig visionConfig) {
+                      LlmModelConfig parseConfig, LlmModelConfig visionConfig, Long dailyTokenLimit) {
         this.usageRepository = usageRepository;
         this.txManager = txManager;
         this.parseConfig = parseConfig;
         this.visionConfig = visionConfig;
+        this.dailyTokenLimit = dailyTokenLimit;
         this.parseModel = parseConfig.available() ? buildModel(parseConfig) : null;
         this.visionModel = visionConfig.available() ? buildModel(visionConfig) : null;
-        log.info("LLM 配置：parse={}, vision={}",
+        log.info("LLM 配置：parse={}, vision={}, 每日token闸={}",
                 parseConfig.available() ? parseConfig.model() : "未启用",
-                visionConfig.available() ? visionConfig.model() : "未启用");
+                visionConfig.available() ? visionConfig.model() : "未启用",
+                dailyTokenLimit == null ? "不限" : dailyTokenLimit);
     }
 
     private static OpenAiChatModel buildModel(LlmModelConfig cfg) {
         OpenAiApi api = OpenAiApi.builder().baseUrl(cfg.baseUrl()).apiKey(cfg.apiKey()).build();
         return OpenAiChatModel.builder().openAiApi(api).defaultOptions(
                 OpenAiChatOptions.builder().model(cfg.model()).build()).build();
+    }
+
+    /**
+     * 成本闸：今日累计 token 超限时拒发请求（记一条失败账便于排查），返回 true。
+     * 所有 LLM 任务入口先过此闸——限额是唯一事实来源，调用方无需各自判断。
+     */
+    private boolean overBudget(String task, String model) {
+        if (dailyTokenLimit == null) {
+            return false;
+        }
+        // 「今日」按服务器本地时区零点切（单用户本地应用，时区直觉与使用者一致）
+        Instant dayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant();
+        long used = usageRepository.sumTokensSince(dayStart);
+        if (used < dailyTokenLimit) {
+            return false;
+        }
+        log.warn("LLM 每日 token 限额已用完（{}/{}），任务 {} 被拒发", used, dailyTokenLimit, task);
+        recordUsage(task, model, null, false,
+                "daily token budget exceeded (" + used + "/" + dailyTokenLimit + ")", 0);
+        return true;
     }
 
     /** JD 文本解析是否可用（未配置 key 时前端应提示仍需手填） */
@@ -92,7 +119,7 @@ public class LlmService {
      * 由调用方降级为人工填写流程（契约 422）。
      */
     public Optional<ParsedJob> parseJd(String rawText) {
-        if (parseModel == null) {
+        if (parseModel == null || overBudget("jd_parse", parseConfig.model())) {
             return Optional.empty();
         }
         var converter = new BeanOutputConverter<>(ParsedJob.class);
@@ -144,7 +171,7 @@ public class LlmService {
      * 失败返回 Optional.empty()，调用方降级人工填写。
      */
     public Optional<ParsedJob> parsePoster(String imageBase64, String mediaType) {
-        if (visionModel == null) {
+        if (visionModel == null || overBudget("poster_parse", visionConfig.model())) {
             return Optional.empty();
         }
         byte[] bytes;
@@ -209,7 +236,7 @@ public class LlmService {
      * Optional.empty() 由调用方 422 降级。
      */
     public Optional<MatchDetail> evaluateMatch(String jobHeader, String jdText, String resumeProfileJson) {
-        if (parseModel == null) {
+        if (parseModel == null || overBudget("match_eval", parseConfig.model())) {
             return Optional.empty();
         }
         var converter = new BeanOutputConverter<>(MatchDetail.class);
@@ -284,7 +311,7 @@ public class LlmService {
      * 无需动用更贵的视觉模型）。失败返回 Optional.empty()，调用方保留原文待人工/重试。
      */
     public Optional<ParsedResume> parseResume(String resumeText) {
-        if (parseModel == null) {
+        if (parseModel == null || overBudget("resume_parse", parseConfig.model())) {
             return Optional.empty();
         }
         var converter = new BeanOutputConverter<>(ParsedResume.class);
