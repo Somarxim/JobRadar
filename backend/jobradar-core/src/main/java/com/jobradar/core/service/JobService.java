@@ -59,15 +59,18 @@ public class JobService {
     private final CompanyRepository companyRepository;
     private final ApplicationRepository applicationRepository;
     private final LlmService llmService;
+    private final MatchingService matchingService;
 
     // 构造器注入（Spring 4.3+ 单构造器免 @Autowired）：
     // 字段可 final、依赖一目了然、单测 new 出来即可——比字段注入更利于可测试性
     public JobService(JobRepository jobRepository, CompanyRepository companyRepository,
-                      ApplicationRepository applicationRepository, LlmService llmService) {
+                      ApplicationRepository applicationRepository, LlmService llmService,
+                      MatchingService matchingService) {
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
         this.applicationRepository = applicationRepository;
         this.llmService = llmService;
+        this.matchingService = matchingService;
     }
 
     /**
@@ -349,7 +352,7 @@ public class JobService {
                         app.getId(), j.getId(), j.getCompany().getName(), j.getTitle(), j.getCity(),
                         app.getStage(), app.getPriority(), app.getPlannedAt(), app.getNextAction(),
                         app.getNextActionAt(), app.getUpdatedAt()),
-                null, // latestMatchReport：W2 匹配 Agent 上线后填充
+                matchingService.latestOrNull(j.getId()),
                 j.getCreatedAt());
     }
 
