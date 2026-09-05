@@ -55,12 +55,14 @@ public final class JobDtos {
     }
 
     /** 统一导入（POST /jobs/ingest）：插件/粘贴共用。
-     *  hints 自 W2 起整体可选：company/title 缺省时由 LLM 从 raw_text 提取，
-     *  手填字段始终优先于 AI 结果（合并逻辑见 JobService.ingest） */
+     *  hints 自 W2 起整体可选：company/title 缺省时由 LLM 提取（raw_text 走文本解析，
+     *  image_base64 走海报多模态解析，二者至少其一），手填字段始终优先于 AI 结果 */
     public record IngestRequest(@NotBlank String source,
                                 String url,
                                 String rawText,
                                 String pageHtml,
+                                String imageBase64,
+                                String imageMediaType,
                                 Hints hints) {
         public record Hints(String company, String title,
                             String city, String salaryRange, LocalDate deadline) {
