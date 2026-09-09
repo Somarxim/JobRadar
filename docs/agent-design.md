@@ -229,6 +229,29 @@ public ApplyResult apply(long jobId, String channel, String note, LocalDateTime 
 
 - 仅 stdio（无网络端口）；写操作 tool 标注 MCP tool annotations（`idempotentHint` 等），宿主正确渲染确认 UI。
 
+### 6.4 落地偏差记录（W4-1 实测）
+
+- **Resources 收敛为 2 个具体 URI**（`stats/funnel`、`resume/default`）：`jobs/{id}` 的 URI 模板在 MCP SDK 0.10.0 的 Spring AI 自动配置链中支持不完整，且岗位详情由 `get_job_detail` tool 覆盖更符合 LLM 调用习惯；
+- `weekly_report` v1 为**确定性数据组装**（漏斗 + 本周计数），LLM 叙事版随 W4-2 周报 Agent 提供；
+- `apply` 对未收藏岗位自动建卡再流转（一次调用两个 service 方法）；
+- stdio 排雷：PDFBox 传入的 commons-logging 会向 stdout 打印发现警告（污染协议流），已在 core pom 排除；日志走 logback System-Err。
+
+### 6.5 Claude Desktop 接入
+
+```json
+// ~/Library/Application Support/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "jobradar": {
+      "command": "java",
+      "args": ["-jar", "/path/to/backend/jobradar-mcp-server/target/jobradar-mcp-server-0.1.0-SNAPSHOT.jar"],
+      "env": { "DeepSeek_API_KEY": "…", "DASHSCOPE_API_KEY": "…" }
+    }
+  }
+}
+```
+构建：`cd backend && mvn -pl jobradar-mcp-server -am -DskipTests package`；验证：`mcp_smoke.py` 式 initialize/tools_list 握手（见 W4-1 开发记录）。
+
 ## 7. Prompt 资产管理
 
 - system prompt 集中在 `jobradar-core/src/main/resources/prompts/`（match.st / parse-jd.st / parse-resume.st / weekly-report.st），用 Spring AI 的 `PromptTemplate` 加载，代码与 prompt 分离。
