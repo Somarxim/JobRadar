@@ -76,3 +76,25 @@ W2 验收用户实测反馈：
 - 前端 ingest 表单在 422 时未做「AI 部分结果预填」（当前靠表单状态天然保留，
   预填需新 API 契约，暂未实现）
 - 插件站点专属选择器配置化留待 W3 与爬虫解析器统一设计
+
+---
+
+## 第二轮（2026-09-09）：实测反馈修正
+
+用户实测发现第一轮未根除的两个问题：
+
+1. **插件去噪仍失效**：① unpacked 插件不会热更新（需 chrome://extensions 手动 reload）；
+   ② 纯文本长度钻取会被链接密集的侧栏干扰。修正：
+   - `pickMainContainer` 改用**非链接文本长度**作为钻取信号（链接密度判别：
+     侧栏/推荐位几乎全是链接，JD 正文几乎纯文本——Readability 同款思路）
+   - 噪音截断加 **500 字保护线**：标记命中太靠前不截（防 JD 正文自带"安全提示"被误伤）
+   - 新增**服务端安全网** `JdTextCleaner`：raw_text 入库/送 AI 前统一截断噪音，
+     任何来源（旧版插件/手动粘贴/W3 爬虫）都受益；标记列表与插件保持同步
+2. **超长 JD 撑爆布局**：根因是 shadcn 新版 Textarea 的 `field-sizing-content`
+   （内容自适应高度，忽略 rows 上限），8000 字 JD 把编辑弹窗的保存按钮挤出视口。修正：
+   - `ui/textarea.tsx` 移除 field-sizing-content
+   - `ui/dialog.tsx` DialogContent 加 max-h-[85vh] overflow-y-auto
+   - 详情页 JD `<pre>` 加 max-h-[60vh] overflow-y-auto
+
+验证：mvn test 全绿（+JdTextCleanerTest 5 单测）；npm build 通过；node --check popup.js 通过。
+待用户实测：chrome://extensions 点刷新按钮后重新收藏牛客岗位。

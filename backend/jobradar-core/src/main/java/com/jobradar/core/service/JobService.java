@@ -23,6 +23,7 @@ import com.jobradar.core.repository.ApplicationRepository;
 import com.jobradar.core.repository.CompanyRepository;
 import com.jobradar.core.repository.JobRepository;
 import com.jobradar.core.util.DedupeHash;
+import com.jobradar.core.util.JdTextCleaner;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.domain.Page;
@@ -187,6 +188,10 @@ public class JobService {
         List<String> warnings = new ArrayList<>();
         var hints = req.hints();
 
+        // 服务端噪音截断安全网（W2-5）：任何来源的 raw_text 入库/送 AI 前先清洗，
+        // 插件主容器提取是治本，这里是兜底（旧版插件/手动粘贴同样受益）
+        String rawText = JdTextCleaner.truncateNoise(req.rawText());
+
         // 手填 hints 优先；company/title 缺省时由 LLM 从 JD 原文提取（兜底路径）
         String company = hints != null ? trimToNull(hints.company()) : null;
         String title = hints != null ? trimToNull(hints.title()) : null;
@@ -195,7 +200,7 @@ public class JobService {
         LocalDate deadline = hints != null ? hints.deadline() : null;
         String posterJdText = null;
 
-        boolean hasText = req.rawText() != null && !req.rawText().isBlank();
+        boolean hasText = rawText != null && !rawText.isBlank();
         boolean hasImage = req.imageBase64() != null && !req.imageBase64().isBlank();
 
         if (company == null || title == null) {
@@ -204,7 +209,7 @@ public class JobService {
                         "缺少 JD 原文（raw_text）或海报图片（image_base64），无法自动解析，请手动填写公司/岗位");
             }
             // 文本优先于图片（更准更便宜）；图片走两段式海报解析
-            var parsed = hasText ? llmService.parseJd(req.rawText())
+            var parsed = hasText ? llmService.parseJd(rawText)
                     : llmService.parsePoster(req.imageBase64(), req.imageMediaType());
             if (parsed.isEmpty()) {
                 throw new UnprocessableException(
@@ -231,7 +236,7 @@ public class JobService {
             // enrichment 字段全部已手填时不调 AI——零收益纯烧 token
             boolean enrichmentMissing = city == null || salary == null || deadline == null;
             if (enrichmentMissing) {
-                var parsed = llmService.parseJd(req.rawText());
+                var parsed = llmService.parseJd(rawText);
                 if (parsed.isPresent()) {
                     var p = parsed.get();
                     if (city == null) city = trimToNull(p.city());
@@ -277,7 +282,7 @@ public class JobService {
         Job job = new Job();
         job.setCompany(companyEntity);
         job.setTitle(title);
-        job.setJdText(req.rawText() != null && !req.rawText().isBlank() ? req.rawText()
+        job.setJdText(rawText != null && !rawText.isBlank() ? rawText
                 : posterJdText != null ? posterJdText : "");
         job.setCity(city);
         job.setSalaryRange(salary);
