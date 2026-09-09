@@ -131,6 +131,31 @@ export interface DashboardSummary {
   }[]
 }
 
+/** W4-3 图表统计：近 N 天逐日数据 + 公司类型分布 */
+export interface DashboardStats {
+  daily: { date: string; applied: number; new_jobs: number }[]
+  company_types: { type: string; count: number }[]
+}
+
+/** W4-2 周报：narrative_markdown 为 LLM 叙事（llm_generated=false 时为 null = 纯数据版） */
+export interface WeeklyReport {
+  week_start: string
+  week_end: string
+  stats: {
+    applied: number
+    goal: number
+    prev_week_applied: number
+    new_jobs: number
+    rec_generated: number
+    rec_accepted: number
+    rec_ignored: number
+    stage_inflow: Record<string, number>
+  }
+  events: { at: string; company: string; title: string; to_stage: string; note: string | null }[]
+  narrative_markdown: string | null
+  llm_generated: boolean
+}
+
 export interface CalendarEvent {
   date: string
   type: 'deadline' | 'written_test' | 'interview' | 'planned' | 'next_action'

@@ -7,6 +7,7 @@ import type {
   ApplicationCard,
   BoardResponse,
   CalendarEvent,
+  DashboardStats,
   DashboardSummary,
   EventItem,
   JobDetail,
@@ -18,6 +19,7 @@ import type {
   ResumeDetail,
   ResumeSummary,
   Stage,
+  WeeklyReport,
 } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -89,6 +91,11 @@ export const api = {
   summary: () => request<DashboardSummary>('/api/dashboard/summary'),
   calendar: (month: string) =>
     request<{ events: CalendarEvent[] }>(`/api/dashboard/calendar?month=${month}`),
+  // W4-3 图表统计：days 限 7~90
+  dashboardStats: (days = 30) => request<DashboardStats>(`/api/dashboard/stats?days=${days}`),
+  // W4-2 周报：narrative=true 触发 LLM 叙事（3-10s，调用方需 loading 态）；false 省略参数走后端默认
+  weeklyReport: (weekOffset = 0, narrative = false) =>
+    request<WeeklyReport>(`/api/dashboard/weekly-report${qs({ week_offset: weekOffset, narrative: narrative ? 'true' : undefined })}`),
 
   // Recommendations（每日推荐：今日列表 / 反馈闭环 / 手动触发）
   todayRecommendations: () => request<Recommendation[]>('/api/recommendations/today'),

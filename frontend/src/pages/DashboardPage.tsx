@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
-import type { DashboardSummary, Recommendation } from '@/api/types'
+import type { DashboardStats, DashboardSummary, Recommendation } from '@/api/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import RecommendationSection from '@/components/RecommendationSection'
+import { FunnelChart, TrendChart, TypePie } from '@/components/StatsCharts'
+import WeeklyReportCard from '@/components/WeeklyReportCard'
 import { STAGE_META } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import { AlarmClock, ListTodo, TrendingUp } from 'lucide-react'
 
-/** 仪表盘：漏斗数字卡 + 今日推荐 + 本周进展 + DDL 倒计时 + 待办（roadmap W1 验收页） */
+/** 仪表盘：漏斗数字卡 + 图表区 + 今日推荐 + 本周进展 + DDL 倒计时 + 待办 + 每周复盘 */
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [recs, setRecs] = useState<Recommendation[] | null>(null)
+  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const loadRecs = useCallback(() => {
@@ -23,6 +26,8 @@ export default function DashboardPage() {
   useEffect(() => {
     api.summary().then(setData).catch((e) => setError(e.message))
     loadRecs()
+    // 图表区独立加载：stats 失败只隐藏图表，不影响主视图
+    api.dashboardStats(30).then(setStats).catch(() => setStats(null))
   }, [loadRecs])
 
   if (error) return <p className="text-destructive">加载失败：{error}</p>
@@ -58,6 +63,15 @@ export default function DashboardPage() {
         onItemHandled={(id) => setRecs((prev) => prev?.filter((r) => r.id !== id) ?? null)}
         onRefresh={loadRecs}
       />
+
+      {/* 图表区（W4-3）：漏斗构成 + 30 天节奏 + 公司类型分布 */}
+      {stats && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <FunnelChart funnel={funnel} />
+          <TrendChart daily={stats.daily} />
+          <TypePie shares={stats.company_types} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* 投递进展：累计投递 = 当前处于「已投递/笔试/面试/Offer」阶段的申请数（在途有效投递）。
@@ -136,6 +150,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 每周复盘（W4-2）：纯数据版即时出，AI 叙事按需生成 */}
+      <WeeklyReportCard />
     </div>
   )
 }
