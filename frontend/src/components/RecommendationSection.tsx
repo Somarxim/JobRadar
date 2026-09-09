@@ -9,18 +9,18 @@ import { Button } from '@/components/ui/button'
 import { Sparkles, Check, X, RefreshCw } from 'lucide-react'
 
 /**
- * Dashboard 今日推荐区（W3-3）：每日 07:45 管线产出 Top 5。
- * 反馈闭环：感兴趣 → accept（自动建看板卡片）；不感兴趣 → ignore（可带原因标签，
- * 标签回流用于评估推荐质量）。已反馈的卡片降透明度展示，不消失（当天仍可回溯）。
+ * Dashboard 今日推荐区（W3-3）：每日 07:45 管线产出一炉 Top 5。
+ * 展示模型：只显示当前待处理的一炉——已「感兴趣」（进看板）或「忽略」的条目
+ * 立即从列表消失（后端 today 接口也只回 PENDING），下一炉整体替换上一炉。
  */
 export default function RecommendationSection({
   items,
-  onItemChanged,
+  onItemHandled,
   onRefresh,
 }: {
   items: Recommendation[]
-  /** 单条反馈成功后回传更新后的条目，父组件局部替换 */
-  onItemChanged: (updated: Recommendation) => void
+  /** 反馈成功后父组件把该条移出列表 */
+  onItemHandled: (id: number) => void
   /** 「立即推荐」跑完后整表刷新 */
   onRefresh: () => void
 }) {
@@ -30,8 +30,8 @@ export default function RecommendationSection({
   const feedback = async (rec: Recommendation, action: 'accept' | 'ignore') => {
     setBusyId(rec.id)
     try {
-      const updated = await api.feedbackRecommendation(rec.id, { action })
-      onItemChanged(updated)
+      await api.feedbackRecommendation(rec.id, { action })
+      onItemHandled(rec.id)
       toast.success(action === 'accept' ? '已加入看板（收藏）' : '已忽略')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '操作失败')
@@ -45,10 +45,10 @@ export default function RecommendationSection({
     try {
       const report = await api.runRecommendations()
       toast.success(
-        `推荐完成：候选 ${report.candidates} → 推荐 ${report.recommended}` +
+        `新推荐出炉：候选 ${report.candidates} → 本炉 ${report.recommended} 条` +
           (report.llm_scored === 0 ? '（LLM 不可用，规则粗排）' : ''),
       )
-      // 一轮管线可能换掉整个列表，整表刷新
+      // 一炉换一炉：整表刷新
       onRefresh()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '推荐管线执行失败')
@@ -71,21 +71,20 @@ export default function RecommendationSection({
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {items.length === 0 && (
+        {running && (
+          <div className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+            推荐管线运行中：粗筛后逐岗 AI 精评，约需 1~2 分钟，跑完自动刷新本区…
+          </div>
+        )}
+        {!running && items.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            今天还没有推荐。爬虫每日 07:30 抓取、07:45 生成推荐；也可点右上角「立即推荐」。
+            没有待处理的推荐。点右上角「立即推荐」跑一炉（每日 07:45 也会自动生成）；
+            点过「感兴趣」的岗位已进看板。
           </p>
         )}
-        {items.map((r) => {
-          const done = r.status !== 'pending'
-          return (
-            <div
-              key={r.id}
-              className={
-                'flex items-center gap-3 rounded-md border px-3 py-2 text-sm transition-opacity ' +
-                (done ? 'opacity-50' : '')
-              }
-            >
+        {!running &&
+          items.map((r) => (
+            <div key={r.id} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
               <span className="w-5 text-center font-mono text-xs text-muted-foreground">{r.rank}</span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -106,32 +105,25 @@ export default function RecommendationSection({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                {r.status === 'accepted' && <Badge variant="default">已入看板</Badge>}
-                {r.status === 'ignored' && <Badge variant="secondary">已忽略</Badge>}
-                {!done && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busyId === r.id}
-                      onClick={() => feedback(r, 'accept')}
-                    >
-                      <Check className="size-3.5" />感兴趣
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={busyId === r.id}
-                      onClick={() => feedback(r, 'ignore')}
-                    >
-                      <X className="size-3.5" />忽略
-                    </Button>
-                  </>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busyId === r.id}
+                  onClick={() => feedback(r, 'accept')}
+                >
+                  <Check className="size-3.5" />感兴趣
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busyId === r.id}
+                  onClick={() => feedback(r, 'ignore')}
+                >
+                  <X className="size-3.5" />忽略
+                </Button>
               </div>
             </div>
-          )
-        })}
+          ))}
       </CardContent>
     </Card>
   )
