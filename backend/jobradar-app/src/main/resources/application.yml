@@ -26,6 +26,7 @@ spring:
 
   flyway:
     enabled: true
+    # 迁移脚本在 jobradar-core（schema 与实体同模块），app 经依赖传递拿到
     locations: classpath:db/migration
 
   servlet:
