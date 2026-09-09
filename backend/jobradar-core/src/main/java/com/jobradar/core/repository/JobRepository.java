@@ -37,4 +37,18 @@ public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificatio
 
     /** 每日推荐管线候选池：近 N 天新入库的岗位（爬虫/手动录入都算） */
     List<Job> findByActiveTrueAndCreatedAtGreaterThanEqual(Instant since);
+
+    /** 图表统计（W4-3）：区间入库岗位（含已归档——当日"收录"动作不因事后清理而抹除） */
+    List<Job> findByCreatedAtGreaterThanEqual(Instant since);
+
+    /** 图表统计（W4-3）：在架岗位的公司类型分布 */
+    @org.springframework.data.jpa.repository.Query(
+            "select j.company.companyType as type, count(j) as cnt from Job j where j.active = true group by j.company.companyType")
+    List<TypeCount> countGroupByCompanyType();
+
+    interface TypeCount {
+        com.jobradar.core.domain.CompanyType getType();
+
+        long getCnt();
+    }
 }

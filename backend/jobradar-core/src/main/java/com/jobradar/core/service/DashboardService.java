@@ -1,16 +1,20 @@
 package com.jobradar.core.service;
 
 import com.jobradar.core.domain.Application;
+import com.jobradar.core.domain.ApplicationEvent;
 import com.jobradar.core.domain.ApplicationStage;
 import com.jobradar.core.domain.Job;
 import com.jobradar.core.domain.RecommendationStatus;
 import com.jobradar.core.domain.WeeklyGoal;
 import com.jobradar.core.dto.DashboardDtos.CalendarEvent;
 import com.jobradar.core.dto.DashboardDtos.CalendarResponse;
+import com.jobradar.core.dto.DashboardDtos.DailyPoint;
+import com.jobradar.core.dto.DashboardDtos.DashboardStats;
 import com.jobradar.core.dto.DashboardDtos.DashboardSummary;
 import com.jobradar.core.dto.DashboardDtos.DeadlineItem;
 import com.jobradar.core.dto.DashboardDtos.NextActionItem;
 import com.jobradar.core.dto.DashboardDtos.ThisWeek;
+import com.jobradar.core.dto.DashboardDtos.TypeShare;
 import com.jobradar.core.exception.BadRequestException;
 import com.jobradar.core.repository.ApplicationRepository;
 import com.jobradar.core.repository.ApplicationEventRepository;
@@ -29,8 +33,10 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -147,5 +153,43 @@ public class DashboardService {
 
     private String nullToEmpty(String s) {
         return s == null ? "" : s;
+    }
+
+    /**
+     * GET /dashboard/stats?days=N（W4-3 图表）：近 N 天逐日「投递数 + 新收录岗位数」+
+     * 在架岗位公司类型分布。逐日聚合在 Java 侧做（Instant → 本地日期）：
+     * 单用户量级（几十到几百行），换来不碰 DB 方言的 date_trunc/cast（时区语义陷阱）。
+     * 0 值日补齐——前端折线/柱状图需要连续日期轴。
+     */
+    @Transactional(readOnly = true)
+    public DashboardStats stats(int days) {
+        int window = Math.min(Math.max(days, 7), 90);
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDate from = LocalDate.now().minusDays(window - 1L);
+        Instant since = from.atStartOfDay(zone).toInstant();
+
+        Map<LocalDate, long[]> byDay = new HashMap<>(); // [applied, newJobs]
+        for (ApplicationEvent e : eventRepository
+                .findByToStageAndCreatedAtGreaterThanEqual(ApplicationStage.APPLIED, since)) {
+            byDay.computeIfAbsent(e.getCreatedAt().atZone(zone).toLocalDate(), k -> new long[2])[0]++;
+        }
+        for (Job j : jobRepository.findByCreatedAtGreaterThanEqual(since)) {
+            byDay.computeIfAbsent(j.getCreatedAt().atZone(zone).toLocalDate(), k -> new long[2])[1]++;
+        }
+
+        List<DailyPoint> daily = new ArrayList<>(window);
+        for (int i = 0; i < window; i++) {
+            LocalDate d = from.plusDays(i);
+            long[] c = byDay.getOrDefault(d, new long[2]);
+            daily.add(new DailyPoint(d, c[0], c[1]));
+        }
+
+        List<TypeShare> typeShares = new ArrayList<>();
+        for (JobRepository.TypeCount row : jobRepository.countGroupByCompanyType()) {
+            // 未分类归并到 other：饼图不需要「null」扇区
+            String key = row.getType() == null ? "other" : row.getType().name().toLowerCase(Locale.ROOT);
+            typeShares.add(new TypeShare(key, row.getCnt()));
+        }
+        return new DashboardStats(daily, typeShares);
     }
 }

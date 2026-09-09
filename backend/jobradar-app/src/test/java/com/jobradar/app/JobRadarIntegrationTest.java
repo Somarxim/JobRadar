@@ -69,6 +69,8 @@ class JobRadarIntegrationTest {
     private com.jobradar.core.repository.ApplicationRepository applicationRepository;
     @Autowired
     private com.jobradar.core.service.WeeklyReportService weeklyReportService;
+    @Autowired
+    private com.jobradar.core.service.DashboardService dashboardService;
     /** 抓取层打桩：测试不依赖外网（真实站点的连通性/反爬属于运行环境，不属于逻辑正确性） */
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.jobradar.core.crawl.PageFetcher pageFetcher;
@@ -255,6 +257,24 @@ class JobRadarIntegrationTest {
         assertThat(niukeSecond.duplicated()).isEqualTo(4); // 4 条全量重抓全部命中去重
         assertThat(crawlSourceRepository.findById(good.getId()).orElseThrow().getLastCrawledAt()).isNotNull();
         assertThat(crawlSourceRepository.findById(niuke.getId()).orElseThrow().getLastCrawledAt()).isNotNull();
+    }
+
+    /** 图表统计（W4-3）：逐日序列长度正确、当日计入投递与收录、类型分布非空（共享库断言用 >=） */
+    @Test
+    void dashboardStatsCoversTodayAndPadsZeros() {
+        var job = jobService.create(new JobCreateRequest(
+                "测试公司图表甲", null, "Go 开发", null, "成都", null, null, null, null));
+        var app = applicationService.create(new ApplicationCreateRequest(job.id(), null, null, null, null));
+        applicationService.transition(app.id(),
+                new StageTransitionRequest(ApplicationStage.APPLIED, null, "official", null));
+
+        var stats = dashboardService.stats(7);
+        assertThat(stats.daily()).hasSize(7);
+        var today = stats.daily().get(6);
+        assertThat(today.date()).isEqualTo(java.time.LocalDate.now());
+        assertThat(today.applied()).isGreaterThanOrEqualTo(1);
+        assertThat(today.newJobs()).isGreaterThanOrEqualTo(1);
+        assertThat(stats.companyTypes()).isNotEmpty();
     }
 
     /** 核心流转：收藏 → 计划 → 投递（channel 必填）→ 事件留痕；同阶段重复流转幂等 */
