@@ -20,46 +20,59 @@ const $ = (id) => document.getElementById(id)
 
 /**
  * 注入到页面上下文执行：选中文字优先，否则主容器正文（截断 8000 字防超长 prompt）。
- * 注意：此函数被序列化注入页面，内部不能引用外部变量（NOISE_MARKERS 需内联）。
+ * 注意：此函数被序列化注入页面，内部不能引用外部变量（常量需内联）。
  */
 function extractPage() {
   // 招聘页噪音边界词：命中即丢弃该处及之后的内容。
-  // 依据：innerText 按 DOM 顺序输出，推荐位/安全提示通常排在 JD 正文之后
-  // （侧边栏视觉在左/右但 DOM 多在主内容后）。此列表随实测持续补充。
+  // 依据：innerText 按 DOM 顺序输出，推荐位/安全提示通常排在 JD 正文之后。
+  // 与后端 JdTextCleaner.NOISE_MARKERS 保持一致（W3 统一到配置）。
   const NOISE_MARKERS = [
-    '安全提示', '防诈骗', '看过该职位的人还在看', '看过该职位的人还看了',
-    '猜你喜欢', '为你推荐', '相似职位', '推荐职位', '热门职位', '相关职位推荐',
-    '大家都在看', '精选职位', '最新推荐',
+    '看过该职位的人还在看', '看过该职位的人还看了', '安全提示', '防诈骗',
+    '猜你喜欢', '为你推荐', '相似职位', '推荐职位', '热门职位',
+    '相关职位推荐', '大家都在看', '精选职位', '最新推荐',
+    '面试经验', '公司点评', '换一批',
   ]
+
+  // 截断保护线：命中位置太靠前不截——可能是正文正常提及（如 JD 自带安全条款），
+  // 截断会误伤正文。与后端 JdTextCleaner 一致。
+  const MIN_KEEP = 500
 
   function truncateNoise(text) {
     let cut = text.length
     for (const m of NOISE_MARKERS) {
       const i = text.indexOf(m)
-      if (i >= 0 && i < cut) cut = i
+      if (i >= MIN_KEEP && i < cut) cut = i
     }
     return text.slice(0, cut)
   }
 
   /**
-   * 定位主内容容器：优先语义标签（main/article/[role=main]），
-   * 否则从 body 向下钻取——每步进入「占父级文本 ≥70%」的最大子元素，
-   * 直到文本开始分裂（说明已到正文容器层）。Readability 的简化版，
-   * 站点无关；招聘页正文远大于导航/侧栏，钻取会停在 JD 容器附近。
+   * 定位主内容容器。核心信号是「非链接文本长度」：
+   * 侧边推荐/导航/广告几乎全是链接，JD 正文几乎纯文本——
+   * 链接密度是区分正文与噪音的经典启发式（Readability 同款思路）。
+   * 做法：从 body 向下钻取，每步进入「非链接文本占父级 ≥70%」的最大子元素，
+   * 直到文本分裂（说明已到正文容器层）。
    */
   function pickMainContainer() {
     const direct = document.querySelector('main, article, [role="main"]')
     if (direct && (direct.innerText || '').trim().length > 200) return direct
+
+    function nonLinkTextLen(el) {
+      let linkLen = 0
+      for (const a of el.querySelectorAll('a')) linkLen += (a.innerText || '').trim().length
+      return (el.innerText || '').trim().length - linkLen
+    }
+
     let cur = document.body
     while (cur) {
-      const curLen = (cur.innerText || '').trim().length
+      const curLen = nonLinkTextLen(cur)
       let next = null
       let nextLen = 0
       for (const child of cur.children) {
-        const len = (child.innerText || '').trim().length
+        const len = nonLinkTextLen(child)
         if (len > nextLen) { nextLen = len; next = child }
       }
-      // 最大子元素占父级不到 70%（文本分裂到多个区块）或已足够短：停
+      // 最大子元素占父级非链接文本不到 70%（分裂到多个区块）或太短：停
       if (!next || nextLen < curLen * 0.7 || nextLen < 500) break
       cur = next
     }
