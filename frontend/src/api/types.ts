@@ -127,7 +127,7 @@ export interface DashboardSummary {
     application_id: number
     company: string
     next_action: string
-    next_action_at: string
+    next_action_at: string | null // null = 系统自动待办，显示"尽快"
   }[]
 }
 
