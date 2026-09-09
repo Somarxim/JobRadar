@@ -27,4 +27,10 @@ public interface RecommendationRepository extends JpaRepository<Recommendation, 
 
     /** Dashboard 统计：待处理的推荐条数 */
     long countByStatus(RecommendationStatus status);
+
+    /** 周报（W4-2）：区间内生成的推荐总数 */
+    long countByRecDateBetween(LocalDate from, LocalDate to);
+
+    /** 周报（W4-2）：区间内指定状态的推荐数（采纳率=ACCEPTED/总数） */
+    long countByRecDateBetweenAndStatus(LocalDate from, LocalDate to, RecommendationStatus status);
 }
