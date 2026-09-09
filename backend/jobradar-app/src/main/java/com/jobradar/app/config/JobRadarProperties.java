@@ -1,6 +1,5 @@
 package com.jobradar.app.config;
 
-import com.jobradar.core.llm.LlmModelConfig;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
@@ -13,7 +12,7 @@ import java.util.List;
  * 配合 spring-boot-configuration-processor 还能生成配置元数据（yml 里自动补全）。
  */
 @ConfigurationProperties(prefix = "jobradar")
-public record JobRadarProperties(Security security, Cors cors, Llm llm, Storage storage) {
+public record JobRadarProperties(Security security, Cors cors) {
 
     public record Security(String localToken) {
     }
@@ -22,16 +21,8 @@ public record JobRadarProperties(Security security, Cors cors, Llm llm, Storage 
     public record Cors(List<String> allowedOrigins) {
     }
 
-    /**
-     * LLM 模型路由（agent-design.md §1.2）：
-     * parse=文本结构化解析（DeepSeek，中文好、便宜）；vision=多模态（DashScope qwen-vl，海报图片）。
-     * key 为空即未启用，对应能力优雅降级（ingest 回到 hints 必填）。
-     * dailyTokenLimit=每日 token 成本闸（null 不限），超闸后所有 LLM 任务拒发并记失败账。
-     */
-    public record Llm(LlmModelConfig parse, LlmModelConfig vision, Long dailyTokenLimit) {
-    }
+    // LLM 段（jobradar.llm.*）的绑定在 core 的 CoreLlmConfig.LlmProps（W4-1 下沉，
+    // mcp-server 进程同样需要 LlmService），这里只保留 Web 侧关心的配置组
 
-    /** 本地文件存储：简历 PDF 原件目录（单用户本地应用，直接落文件系统，默认值见 application.yml） */
-    public record Storage(String resumeDir) {
-    }
+    // storage 段（jobradar.storage.*）同 LLM 段一并下沉 core（CoreResumeConfig.StorageProps）
 }

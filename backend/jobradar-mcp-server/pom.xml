@@ -25,9 +25,34 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
+        <!-- W4-1：MCP Server（stdio 传输，接 Claude Desktop）。
+             ToolCallbackProvider bean 由自动配置收集注册为 MCP tools -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server</artifactId>
+        </dependency>
 
-        <!-- W4 引入：org.springframework.ai:spring-ai-starter-mcp-server（stdio 传输）。
-             artifact 坐标以届时官方文档为准（Spring AI 1.x 里程碑间曾有调整） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- @Testcontainers/@Container 注解在独立模块（junit-jupiter），postgresql 模块不含 -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -35,6 +60,18 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Docker 29 daemon 拒绝 <1.43 的 API 请求（400）；docker-java 默认按 1.32。
+                         docker-java 只从系统属性/properties 文件读 api.version（不读环境变量，
+                         实测 API_VERSION env 无效），故用 surefire systemPropertyVariables 钉住 1.44 -->
+                    <systemPropertyVariables>
+                        <api.version>1.44</api.version>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
         </plugins>
     </build>

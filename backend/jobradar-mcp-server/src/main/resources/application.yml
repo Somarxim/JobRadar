@@ -1,0 +1,64 @@
+# MCP Server 配置：stdio 传输接 Claude Desktop（无 HTTP 端口）。
+# 与 jobradar-app 共用同一个数据库与 LLM 配置；schema 迁移归 app 所有，这里不做 Flyway。
+spring:
+  application:
+    name: jobradar-mcp-server
+
+  main:
+    # 关键：不启动 Web 容器 + 关 banner——stdio 模式下 stdout 只能走 MCP 协议帧
+    web-application-type: none
+    banner-mode: off
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jobradar}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate   # schema 唯一事实来源是 app 模块的 Flyway 迁移
+    open-in-view: false
+
+  flyway:
+    # MCP 进程不参与迁移：迁移由 jobradar-app 启动时执行（单一写者，避免两进程抢锁/漂移）
+    enabled: false
+
+  jackson:
+    default-property-inclusion: non_null
+    property-naming-strategy: SNAKE_CASE   # 与 Web API 契约一致
+
+  ai:
+    model:
+      chat: none          # 模型由 core LlmConfig 显式构造，starter 自动装配全关
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    mcp:
+      server:
+        stdio: true
+        name: jobradar
+        version: 0.1.0
+
+jobradar:
+  security:
+    local-token: ${JOBRADAR_LOCAL_TOKEN:dev-only-token-change-me}
+  llm:
+    daily-token-limit: ${LLM_DAILY_TOKEN_LIMIT:200000}
+    parse:
+      base-url: https://api.deepseek.com
+      api-key: ${DeepSeek_API_KEY:}
+      model: deepseek-chat
+    vision:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      api-key: ${DASHSCOPE_API_KEY:}
+      model: qwen-vl-plus
+  storage:
+    resume-dir: ${JOBRADAR_RESUME_DIR:~/.jobradar/resumes}
+  # MCP 进程不跑调度：爬虫/推荐定时任务归 jobradar-app（单一调度者）
+  crawler:
+    enabled: false
+  recommend:
+    enabled: false
