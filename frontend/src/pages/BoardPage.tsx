@@ -17,6 +17,7 @@ import {
 import { CHANNEL_LABELS, STAGE_META, STAGES, fmtDateTime, isRollback } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import TransitionConfirmDialog, { type RollbackRequest } from '@/components/TransitionConfirmDialog'
+import { ErrorState, LoadingState } from '@/components/StatusStates'
 
 /**
  * 投递看板：每列一个阶段，拖拽卡片跨列即触发状态流转 API。
@@ -77,8 +78,8 @@ export default function BoardPage() {
     doTransition(appId, target)
   }
 
-  if (error) return <p className="text-destructive">加载失败：{error}</p>
-  if (!groups) return <p className="text-muted-foreground">加载中…</p>
+  if (error) return <ErrorState message={error} onRetry={load} />
+  if (!groups) return <LoadingState />
 
   return (
     <div className="space-y-4 h-full flex flex-col">

@@ -9,6 +9,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { fmtDate } from '@/lib/labels'
+import { ErrorState, LoadingState } from '@/components/StatusStates'
 import {
   Award, Briefcase, FileText, GraduationCap, RefreshCw, Star, Upload, Wrench,
 } from 'lucide-react'
@@ -106,7 +107,8 @@ export default function ResumesPage() {
         </Button>
       </div>
 
-      {error && <p className="text-sm text-destructive">加载失败：{error}</p>}
+      {error && <ErrorState message={error} onRetry={load} />}
+      {!error && !items && <LoadingState />}
       {items && items.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
