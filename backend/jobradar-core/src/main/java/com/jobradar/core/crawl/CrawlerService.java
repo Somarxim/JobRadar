@@ -109,8 +109,8 @@ public class CrawlerService {
     }
 
     private SourceResult runSource(CrawlSource source) throws Exception {
-        String html = fetcher.fetch(source.getUrl());
-        List<RawJobPosting> postings = parserRegistry.get(source.getParser()).parse(source, html);
+        SiteParser parser = parserRegistry.get(source.getParser());
+        List<RawJobPosting> postings = fetchAllPages(source, parser);
         String platform = readPlatform(source);
 
         int created = 0;
@@ -159,6 +159,35 @@ public class CrawlerService {
             return n != null && n.isTextual() && !n.asText().isBlank() ? n.asText() : "official";
         } catch (Exception e) {
             return "official";
+        }
+    }
+
+    /**
+     * 分页抓取：meta.pagination = {"start": 1, "pages": 3}（缺省单页）。
+     * 任一页失败即整源失败——宁可少抓一轮也不落半截数据；幂等兜底，下轮重抓无损。
+     */
+    private List<RawJobPosting> fetchAllPages(CrawlSource source, SiteParser parser) throws Exception {
+        int[] range = readPagination(source);
+        List<RawJobPosting> all = new ArrayList<>();
+        for (int page = range[0]; page < range[0] + range[1]; page++) {
+            String body = fetcher.fetch(source, page);
+            all.addAll(parser.parse(source, body));
+        }
+        return all;
+    }
+
+    private static int[] readPagination(CrawlSource source) {
+        try {
+            JsonNode meta = MAPPER.readTree(source.getMeta() == null ? "{}" : source.getMeta());
+            JsonNode p = meta.get("pagination");
+            if (p == null || !p.isObject()) {
+                return new int[]{-1, 1}; // 不分页：page=-1 告知 fetcher 不注入页码
+            }
+            int start = p.path("start").asInt(1);
+            int pages = Math.max(1, Math.min(p.path("pages").asInt(1), 20)); // 上限 20 页，防配置笔误打爆目标站
+            return new int[]{start, pages};
+        } catch (Exception e) {
+            return new int[]{-1, 1};
         }
     }
 
