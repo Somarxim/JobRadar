@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 public interface RecommendationRepository extends JpaRepository<Recommendation, Long> {
@@ -19,6 +20,10 @@ public interface RecommendationRepository extends JpaRepository<Recommendation, 
     /** 防重复推荐窗口：近 N 天推荐过的岗位 id 批量取回（避免逐岗 exists 的 N+1） */
     @Query("select r.job.id from Recommendation r where r.recDate >= :since")
     List<Long> findJobIdsByRecDateGreaterThanEqual(LocalDate since);
+
+    /** 批量删除前的引用检查：这些岗位里哪些被推荐过（投影只取 id） */
+    @Query("select distinct r.job.id from Recommendation r where r.job.id in :jobIds")
+    List<Long> findJobIdsByJobIdIn(Collection<Long> jobIds);
 
     /** Dashboard 统计：待处理的推荐条数 */
     long countByStatus(RecommendationStatus status);

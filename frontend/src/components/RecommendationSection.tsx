@@ -45,13 +45,13 @@ export default function RecommendationSection({
     try {
       const report = await api.runRecommendations()
       toast.success(
-        `新推荐出炉：候选 ${report.candidates} → 本炉 ${report.recommended} 条` +
-          (report.llm_scored === 0 ? '（LLM 不可用，规则粗排）' : ''),
+        `推荐完成：从 ${report.candidates} 个新岗位中为你选出 ${report.recommended} 个` +
+          (report.llm_scored === 0 ? '（AI 暂不可用，已按方向规则推荐）' : ''),
       )
       // 一炉换一炉：整表刷新
       onRefresh()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '推荐管线执行失败')
+      toast.error(e instanceof Error ? e.message : '推荐失败，请稍后重试')
     } finally {
       setRunning(false)
     }
@@ -73,13 +73,13 @@ export default function RecommendationSection({
       <CardContent className="space-y-2">
         {running && (
           <div className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-            推荐管线运行中：粗筛后逐岗 AI 精评，约需 1~2 分钟，跑完自动刷新本区…
+            正在为你挑选岗位：先按方向初筛，再由 AI 逐个评估，约需 1~2 分钟，完成后这里会自动更新…
           </div>
         )}
         {!running && items.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            没有待处理的推荐。点右上角「立即推荐」跑一炉（每日 07:45 也会自动生成）；
-            点过「感兴趣」的岗位已进看板。
+            暂时没有新推荐。点击右上角「立即推荐」马上生成（系统也会每天早上 7:45 自动推荐）；
+            之前点过「感兴趣」的岗位已经加入看板。
           </p>
         )}
         {!running &&
@@ -94,7 +94,7 @@ export default function RecommendationSection({
                   {r.llm_scored ? (
                     <Badge variant={r.score >= 70 ? 'default' : 'secondary'}>{r.score} 分</Badge>
                   ) : (
-                    <Badge variant="outline">规则粗排</Badge>
+                    <Badge variant="outline">方向匹配</Badge>
                   )}
                   {r.deadline && (
                     <span className="shrink-0 text-xs text-muted-foreground">截止 {r.deadline}</span>

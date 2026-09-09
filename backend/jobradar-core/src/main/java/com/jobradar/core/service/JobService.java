@@ -6,6 +6,7 @@ import com.jobradar.core.domain.Company;
 import com.jobradar.core.domain.CompanyTier;
 import com.jobradar.core.domain.CompanyType;
 import com.jobradar.core.domain.Job;
+import com.jobradar.core.dto.JobDtos.BatchDeleteResult;
 import com.jobradar.core.dto.JobDtos.CompanyBrief;
 import com.jobradar.core.dto.JobDtos.IngestRequest;
 import com.jobradar.core.dto.JobDtos.IngestResponse;
@@ -22,6 +23,8 @@ import com.jobradar.core.llm.LlmService;
 import com.jobradar.core.repository.ApplicationRepository;
 import com.jobradar.core.repository.CompanyRepository;
 import com.jobradar.core.repository.JobRepository;
+import com.jobradar.core.repository.MatchReportRepository;
+import com.jobradar.core.repository.RecommendationRepository;
 import com.jobradar.core.util.DedupeHash;
 import com.jobradar.core.util.JdTextCleaner;
 import jakarta.persistence.criteria.Predicate;
@@ -59,17 +62,23 @@ public class JobService {
     private final JobRepository jobRepository;
     private final CompanyRepository companyRepository;
     private final ApplicationRepository applicationRepository;
+    private final MatchReportRepository matchReportRepository;
+    private final RecommendationRepository recommendationRepository;
     private final LlmService llmService;
     private final MatchingService matchingService;
 
     // 构造器注入（Spring 4.3+ 单构造器免 @Autowired）：
     // 字段可 final、依赖一目了然、单测 new 出来即可——比字段注入更利于可测试性
     public JobService(JobRepository jobRepository, CompanyRepository companyRepository,
-                      ApplicationRepository applicationRepository, LlmService llmService,
-                      MatchingService matchingService) {
+                      ApplicationRepository applicationRepository,
+                      MatchReportRepository matchReportRepository,
+                      RecommendationRepository recommendationRepository,
+                      LlmService llmService, MatchingService matchingService) {
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
         this.applicationRepository = applicationRepository;
+        this.matchReportRepository = matchReportRepository;
+        this.recommendationRepository = recommendationRepository;
         this.llmService = llmService;
         this.matchingService = matchingService;
     }
@@ -350,6 +359,38 @@ public class JobService {
         // 无需显式 save：事务内托管实体的字段变更会被 Hibernate 脏检查（dirty checking）
         // 自动同步。这也是 @Transactional 边界内"托管对象"语义的一部分。
         return toDetail(job);
+    }
+
+    /**
+     * 批量删除（POST /jobs/batch-delete）。两种命运：
+     * <ul>
+     *   <li>无关联数据（投递/匹配报告/推荐记录）→ 物理删除——脏数据就该清干净；</li>
+     *   <li>有关联 → 归档（active=false）——删岗位不该连投递历史/反馈记录一起蒸发，
+     *       归档后从岗位库/看板/DDL 全部视图消失，数据仍可用于统计。</li>
+     * </ul>
+     * 引用检查走 3 次批量投影查询（不逐岗 exists，避免 N+1）。
+     */
+    @Transactional
+    public BatchDeleteResult batchDelete(List<Long> ids) {
+        List<Long> distinctIds = ids.stream().distinct().toList();
+        List<Job> jobs = jobRepository.findAllById(distinctIds);
+        int missing = distinctIds.size() - jobs.size();
+        if (jobs.isEmpty()) {
+            return new BatchDeleteResult(0, 0, missing);
+        }
+
+        List<Long> foundIds = jobs.stream().map(Job::getId).toList();
+        java.util.Set<Long> referenced = new java.util.HashSet<>();
+        applicationRepository.findByJobIdIn(foundIds).forEach(a -> referenced.add(a.getJob().getId()));
+        referenced.addAll(matchReportRepository.findJobIdsByJobIdIn(foundIds));
+        referenced.addAll(recommendationRepository.findJobIdsByJobIdIn(foundIds));
+
+        List<Job> toArchive = jobs.stream().filter(j -> referenced.contains(j.getId())).toList();
+        List<Job> toPurge = jobs.stream().filter(j -> !referenced.contains(j.getId())).toList();
+        toArchive.forEach(j -> j.setActive(false));
+        // 归档走脏检查自动落库；物理删除显式 deleteAll
+        jobRepository.deleteAll(toPurge);
+        return new BatchDeleteResult(toPurge.size(), toArchive.size(), missing);
     }
 
     /** 小写字符串 → 枚举（非法值 400）。供 query 参数解析复用 */

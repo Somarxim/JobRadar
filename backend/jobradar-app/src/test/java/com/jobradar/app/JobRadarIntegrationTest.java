@@ -405,6 +405,39 @@ class JobRadarIntegrationTest {
         assertThat(applicationRepository.findByJobId(hitA.id())).isPresent();
     }
 
+    /**
+     * 批量删除（W3 UX）：无关联数据的岗位物理删除；有投递/推荐记录的归档保留
+     * （岗位从列表消失但历史数据不丢）；不存在的 id 计入 missing 不报错。
+     */
+    @Test
+    void batchDeletePurgesOrArchivesByReference() {
+        var clean = jobService.create(new JobCreateRequest(
+                "批删测试甲", null, "临时岗位A", null, null, null, null, null, null));
+        var withApp = jobService.create(new JobCreateRequest(
+                "批删测试乙", null, "临时岗位B", null, null, null, null, null, null));
+        applicationService.create(new ApplicationCreateRequest(withApp.id(), null, null, null, null));
+        var withRec = jobService.create(new JobCreateRequest(
+                "批删测试丙", null, "临时岗位C", null, null, null, null, null, null));
+        var rec = new com.jobradar.core.domain.Recommendation();
+        rec.setJob(jobRepository.findById(withRec.id()).orElseThrow());
+        rec.setRecDate(java.time.LocalDate.now());
+        rec.setRank(9);
+        rec.setReason("测试推荐记录");
+        recommendationRepository.save(rec);
+
+        var res = jobService.batchDelete(java.util.List.of(
+                clean.id(), withApp.id(), withRec.id(), 99999999L));
+        assertThat(res.deleted()).isEqualTo(1);
+        assertThat(res.archived()).isEqualTo(2);
+        assertThat(res.missing()).isEqualTo(1);
+
+        // 无关联 → 真删；有关联 → 归档且引用数据完好
+        assertThat(jobRepository.findById(clean.id())).isEmpty();
+        assertThat(jobRepository.findById(withApp.id()).orElseThrow().isActive()).isFalse();
+        assertThat(jobRepository.findById(withRec.id()).orElseThrow().isActive()).isFalse();
+        assertThat(applicationRepository.findByJobId(withApp.id())).isPresent();
+    }
+
     private int boardTotal() {
         return applicationService.board().groups().values().stream().mapToInt(java.util.List::size).sum();
     }
