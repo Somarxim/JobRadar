@@ -13,6 +13,8 @@ import type {
   JobSummary,
   MatchReport,
   PageResponse,
+  Recommendation,
+  RecommendRunReport,
   ResumeDetail,
   ResumeSummary,
   Stage,
@@ -83,6 +85,16 @@ export const api = {
   summary: () => request<DashboardSummary>('/api/dashboard/summary'),
   calendar: (month: string) =>
     request<{ events: CalendarEvent[] }>(`/api/dashboard/calendar?month=${month}`),
+
+  // Recommendations（每日推荐：今日列表 / 反馈闭环 / 手动触发）
+  todayRecommendations: () => request<Recommendation[]>('/api/recommendations/today'),
+  feedbackRecommendation: (id: number, body: { action: 'accept' | 'ignore'; tag?: string }) =>
+    request<Recommendation>(`/api/recommendations/${id}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  runRecommendations: () =>
+    request<RecommendRunReport>('/api/recommendations/run', { method: 'POST' }),
 
   // Match（同步接口，一次 LLM 调用 3-10s，调用方需 loading 态）
   matchJob: (jobId: number, resumeId?: number) =>
