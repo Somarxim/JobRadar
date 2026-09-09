@@ -126,7 +126,10 @@ export default function DashboardPage() {
               <div key={a.application_id} className="flex items-center justify-between gap-2 text-sm">
                 <span className="truncate">{a.company} · {a.next_action}</span>
                 <span className="text-xs text-muted-foreground shrink-0">
-                  {new Date(a.next_action_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {/* 无时间 = 系统按阶段生成的待办，提示尽快处理 */}
+                  {a.next_action_at
+                    ? new Date(a.next_action_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : <span className="text-amber-600">尽快</span>}
                 </span>
               </div>
             ))}

@@ -91,7 +91,7 @@ public class DashboardService {
                 .toList();
 
         List<NextActionItem> nextActions = applicationRepository
-                .findByJobActiveTrueAndNextActionAtNotNullOrderByNextActionAt().stream()
+                .findNextActions().stream()
                 .limit(UPCOMING_LIMIT)
                 .map(a -> new NextActionItem(a.getId(), a.getJob().getCompany().getName(),
                         a.getNextAction(), a.getNextActionAt()))
