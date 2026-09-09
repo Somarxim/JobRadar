@@ -36,7 +36,7 @@
 - [ ] `llm-engineering.md` —— Prompt 工程实践、结构化输出稳定性（校验/重试/降级）、成本控制、embedding 原理与选型
 
 ### W3 —— 采集工程
-- [ ] `crawler-engineering.md` —— Jsoup/Playwright 取舍、去重算法（hash + 别名归一）、调度与幂等、失败隔离、合规边界
+- [x] `crawler-engineering.md` —— Jsoup/Playwright 取舍、去重算法（hash + 别名归一）、调度与幂等、失败隔离、合规边界（2026-09-10 填充）
 
 ### W4 —— 协议与答辩
 - [ ] `mcp-protocol.md` —— MCP 协议原理（stdio/JSON-RPC）、Tools/Resources/Prompts 三要素、与 Function Calling 的关系、为什么 MCP 是新范式

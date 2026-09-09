@@ -34,8 +34,24 @@ import java.util.Map;
  * 投递生命周期服务：看板 / 创建 / 部分更新 / 状态流转（写事件留痕）。
  * 流转是核心业务规则所在："更新 applications + 追加 application_events" 必须在同一事务。
  */
+/**
+ * 投递生命周期服务：看板 / 创建 / 部分更新 / 状态流转（写事件留痕）。
+ * 流转是核心业务规则所在："更新 applications + 追加 application_events" 必须在同一事务。
+ *
+ * 待办（next_action）维护策略：系统按阶段给"默认下一步"（无时间的自动待办，Dashboard 显示"尽快"），
+ * 用户 PATCH 显式改过文案的视为自定义，流转时绝不覆盖；判定依据 = 当前文案是否等于 from 阶段的默认文案。
+ */
 @Service
 public class ApplicationService {
+
+    /** 各阶段的默认待办文案；终态（REJECTED/WITHDRAWN）无待办（不在表中即清空） */
+    private static final Map<ApplicationStage, String> DEFAULT_NEXT_ACTION = Map.of(
+            ApplicationStage.COLLECTED, "评估是否投递",
+            ApplicationStage.PLANNED, "完成投递",
+            ApplicationStage.APPLIED, "跟进进度，准备笔试",
+            ApplicationStage.WRITTEN_TEST, "参加笔试",
+            ApplicationStage.INTERVIEW, "参加面试",
+            ApplicationStage.OFFER, "确认 offer");
 
     private final ApplicationRepository applicationRepository;
     private final ApplicationEventRepository eventRepository;
@@ -82,6 +98,9 @@ public class ApplicationService {
         if (stage == ApplicationStage.APPLIED) {
             app.setAppliedAt(Instant.now());
         }
+        // 新建即给默认待办（无时间 = "尽快"），让 Dashboard 待办区开箱有内容
+        app.setNextAction(DEFAULT_NEXT_ACTION.get(stage));
+        app.setNextActionAt(null);
         Application saved = applicationRepository.save(app);
 
         // 首条事件：from_stage 为 NULL 表示"从无到有"的创建
@@ -135,6 +154,7 @@ public class ApplicationService {
         if (to == ApplicationStage.APPLIED && app.getAppliedAt() == null) {
             app.setAppliedAt(occurredAt);
         }
+        applyAutoNextAction(app, from, to);
 
         ApplicationEvent event = new ApplicationEvent();
         event.setApplication(app);
@@ -180,6 +200,21 @@ public class ApplicationService {
     private Application findOr404(long id) {
         return applicationRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("投递记录不存在: id=" + id));
+    }
+
+    /**
+     * 流转后维护自动待办：当前文案为空或仍是 from 阶段默认文案（= 未被用户改过）才替换；
+     * 用户自定义文案原样保留。终态清空；自动待办一律不带时间（显示"尽快"）。
+     */
+    private void applyAutoNextAction(Application app, ApplicationStage from, ApplicationStage to) {
+        String current = app.getNextAction();
+        boolean isAuto = current == null || current.equals(DEFAULT_NEXT_ACTION.get(from));
+        if (!isAuto) {
+            return;
+        }
+        String next = DEFAULT_NEXT_ACTION.get(to); // 终态 absent → null = 清空
+        app.setNextAction(next);
+        app.setNextActionAt(null);
     }
 
     private ApplicationCard toCard(Application a) {
