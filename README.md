@@ -49,4 +49,30 @@ JobRadar 通过「多源采集 + 统一岗位库 + 投递看板 + AI 匹配 Agen
 
 ## 快速开始
 
-> 待 MVP 开发完成后补充。
+```bash
+# 1. 数据库（PostgreSQL 16 + pgvector，容器名 jobradar-db）
+docker compose -f deploy/docker-compose.yml up -d
+
+# 2. 后端（Java 21 + Maven；启动时 Flyway 自动建表）
+export DeepSeek_API_KEY=sk-...        # JD/简历解析、匹配、周报叙事（可选，缺失时相关能力自动降级）
+export DASHSCOPE_API_KEY=sk-...       # 招聘海报图片识别（可选）
+export JOBRADAR_LOCAL_TOKEN=...       # 前端/插件访问后端的本机令牌（默认 dev-only-token-change-me）
+cd backend && mvn spring-boot:run -pl jobradar-app
+
+# 3. 前端（Vite dev server，/api 代理到 127.0.0.1:8080）
+cd frontend && npm install && npm run dev   # http://localhost:5173
+
+# 4. Chrome 插件：扩展管理页 → 开发者模式 → 加载 extension/ 目录
+#    popup 里填后端地址与本机令牌即可一键收藏当前页岗位
+
+# 5. MCP Server（Claude Desktop 自然语言管理投递，可选）
+cd backend && mvn -pl jobradar-mcp-server -am -DskipTests package
+#    将 jar 配进 claude_desktop_config.json，详见 docs/agent-design.md §6.5
+```
+
+## 项目状态
+
+- 当前版本见 [docs/roadmap.md](docs/roadmap.md) 顶部版本表（四周计划 W1–W4 已交付）；
+- 自动化测试 46 个（JUnit 5 + Testcontainers 真实 PostgreSQL，含 MCP 协议级冒烟）；
+- 演示脚本（面试 3 分钟动线）见 roadmap §2 里程碑表；
+- 面试讲解素材：[docs/learning/interview-guide.md](docs/learning/interview-guide.md)。

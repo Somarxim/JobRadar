@@ -22,6 +22,7 @@ import JobCreateDialog from '@/components/JobCreateDialog'
 import JobEditDialog from '@/components/JobEditDialog'
 import IngestDialog from '@/components/IngestDialog'
 import { STAGES } from '@/lib/labels'
+import { ErrorState, LoadingState } from '@/components/StatusStates'
 import { Trash2 } from 'lucide-react'
 
 /** 岗位库：搜索筛选 + 表格 + 手动录入/粘贴导入（roadmap W1 核心页） */
@@ -137,7 +138,8 @@ export default function JobsPage() {
         </Select>
       </div>
 
-      {error && <p className="text-destructive text-sm">加载失败:{error}</p>}
+      {error && <ErrorState message={error} onRetry={load} />}
+      {!error && !data && <LoadingState />}
 
       {/* 批量操作栏：有选中时浮现在筛选栏下方 */}
       {selected.size > 0 && (

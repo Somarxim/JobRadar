@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select'
 import JobEditDialog from '@/components/JobEditDialog'
 import MatchReportCard from '@/components/MatchReportCard'
+import { ErrorState, LoadingState } from '@/components/StatusStates'
 import TransitionConfirmDialog, { type RollbackRequest } from '@/components/TransitionConfirmDialog'
 import {
   CHANNEL_LABELS, COMPANY_TYPE_META, STAGE_META, STAGES,
@@ -104,8 +105,8 @@ export default function JobDetailPage() {
     doTransition(target)
   }
 
-  if (error) return <p className="text-destructive">加载失败：{error}</p>
-  if (!job) return <p className="text-muted-foreground">加载中…</p>
+  if (error) return <ErrorState message={error} onRetry={load} />
+  if (!job) return <LoadingState />
 
   const app = job.application
   const typeMeta = COMPANY_TYPE_META[job.company.company_type]
