@@ -25,6 +25,9 @@ public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificatio
     /** Dashboard 本周新增岗位数 */
     long countByCreatedAtGreaterThanEqual(Instant since);
 
+    /** 周报（W4-2）：区间新增岗位数 */
+    long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(Instant from, Instant toExclusive);
+
     /** DDL 倒计时列表（只取未归档岗位，对应 idx_jobs_deadline 部分索引） */
     List<Job> findByActiveTrueAndDeadlineGreaterThanEqualOrderByDeadlineAsc(LocalDate from,
                                                                             Pageable pageable);

@@ -232,7 +232,7 @@ public ApplyResult apply(long jobId, String channel, String note, LocalDateTime 
 ### 6.4 落地偏差记录（W4-1 实测）
 
 - **Resources 收敛为 2 个具体 URI**（`stats/funnel`、`resume/default`）：`jobs/{id}` 的 URI 模板在 MCP SDK 0.10.0 的 Spring AI 自动配置链中支持不完整，且岗位详情由 `get_job_detail` tool 覆盖更符合 LLM 调用习惯；
-- `weekly_report` v1 为**确定性数据组装**（漏斗 + 本周计数），LLM 叙事版随 W4-2 周报 Agent 提供；
+- `weekly_report` v2（W4-2 已落地）：`WeeklyReportService` 两层结构——确定性 SQL 组装统计（周区间事件流水/阶段流入/环比/推荐采纳率），LLM 只做 Markdown 叙事（输入仅聚合 JSON，不含 note 原文）；LLM 失败降级纯数据版。REST `GET /api/dashboard/weekly-report?week_offset=&narrative=` 与 MCP 工具同源；
 - `apply` 对未收藏岗位自动建卡再流转（一次调用两个 service 方法）；
 - stdio 排雷：PDFBox 传入的 commons-logging 会向 stdout 打印发现警告（污染协议流），已在 core pom 排除；日志走 logback System-Err。
 
