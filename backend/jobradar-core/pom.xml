@@ -70,5 +70,19 @@
             <artifactId>pdfbox</artifactId>
             <version>${pdfbox.version}</version>
         </dependency>
+        <!-- Jsoup：W3 爬虫管线。选 Jsoup 而非裸 Java HTTP Client 的理由：抓取 + CSS
+             选择器解析一体，静态页一个依赖全覆盖；遇 JS 渲染页（SPA）按站点适配时
+             优先找其 JSON API，再考虑 Playwright（roadmap 风险登记：源插件化） -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
+        </dependency>
+        <!-- snakeyaml：公司别名映射表 company-aliases.yml 加载（W3 去重归一化）。
+             spring-boot-starter 系已传递引入，此处显式声明表示 core 直接使用 -->
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+        </dependency>
     </dependencies>
 </project>

@@ -53,6 +53,13 @@ class JobRadarIntegrationTest {
     private ApplicationService applicationService;
     @Autowired
     private ResumeService resumeService;
+    @Autowired
+    private com.jobradar.core.repository.CrawlSourceRepository crawlSourceRepository;
+    @Autowired
+    private com.jobradar.core.crawl.CrawlerService crawlerService;
+    /** 抓取层打桩：测试不依赖外网（真实站点的连通性/反爬属于运行环境，不属于逻辑正确性） */
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.jobradar.core.crawl.PageFetcher pageFetcher;
 
     /** 导入幂等：同 company+title+city 二次 ingest 命中 dedupe_hash，不建重复岗位 */
     @Test
@@ -88,6 +95,70 @@ class JobRadarIntegrationTest {
         assertThat(res.parsed().title()).isEqualTo("AI 应用工程师");
         // AI 不可用 → enrichment 失败降级为警告（而非 W2-1 修正前的"不调 AI 或硬 422"）
         assertThat(res.warnings()).anyMatch(w -> w.contains("AI 补全不可用"));
+    }
+
+    /**
+     * W3-1 爬虫管线：selector-list 解析 → 别名归一 → 落库；
+     * 第二轮全量重跑命中 dedupe_hash 幂等跳过；坏源（未注册解析器）失败隔离不影响好源。
+     */
+    @Test
+    void crawlPipelineIsIdempotentAndIsolatesFailures() throws Exception {
+        var good = new com.jobradar.core.domain.CrawlSource();
+        good.setName("集成测试源");
+        good.setUrl("https://example.com/jobs/list");
+        good.setParser("selector-list");
+        good.setCategory(com.jobradar.core.domain.CrawlCategory.SOE_OTHER);
+        good.setMeta("""
+                {"item":"tr.job-row","title":"a.jt","company":".co","city":".city",
+                 "date":".date","url":"a.jt@href","platform":"guopin"}
+                """);
+        crawlSourceRepository.save(good);
+
+        var bad = new com.jobradar.core.domain.CrawlSource();
+        bad.setName("坏源");
+        bad.setUrl("https://example.com/broken");
+        bad.setParser("no-such-parser");
+        bad.setCategory(com.jobradar.core.domain.CrawlCategory.COMMUNITY);
+        crawlSourceRepository.save(bad);
+
+        org.mockito.Mockito.when(pageFetcher.fetch(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn("""
+                        <html><body><table>
+                          <tr class="job-row">
+                            <td><a class="jt" href="/job/101">Java工程师（2026校招）</a></td>
+                            <td class="co">航空工业631所</td><td class="city">西安</td><td class="date">2026-09-01</td>
+                          </tr>
+                          <tr class="job-row">
+                            <td><a class="jt" href="/job/102">软件测试工程师</a></td>
+                            <td class="co">爬虫测试公司</td><td class="city">北京</td>
+                          </tr>
+                        </table></body></html>
+                        """);
+
+        var first = crawlerService.runAll();
+        var goodFirst = first.results().stream()
+                .filter(r -> r.sourceName().equals("集成测试源")).findFirst().orElseThrow();
+        assertThat(goodFirst.error()).isNull();
+        assertThat(goodFirst.created()).isEqualTo(2);
+        // 坏源失败被隔离：error 落进结果，不阻断整轮
+        var badResult = first.results().stream()
+                .filter(r -> r.sourceName().equals("坏源")).findFirst().orElseThrow();
+        assertThat(badResult.error()).contains("未注册的解析器");
+
+        // 公司别名归一：航空工业631所 → 中国航空工业计算技术研究所
+        var job = jobService.search("Java工程师", null, null, null, null, null, "created_desc", 1, 10)
+                .items().stream()
+                .filter(j -> j.title().contains("Java工程师")).findFirst().orElseThrow();
+        assertThat(job.company().name()).isEqualTo("中国航空工业计算技术研究所");
+        assertThat(job.sourcePlatform()).isEqualTo("guopin");
+
+        // 幂等：全量重跑，0 新增 2 去重；last_crawled_at 已更新
+        var second = crawlerService.runAll();
+        var goodSecond = second.results().stream()
+                .filter(r -> r.sourceName().equals("集成测试源")).findFirst().orElseThrow();
+        assertThat(goodSecond.created()).isZero();
+        assertThat(goodSecond.duplicated()).isEqualTo(2);
+        assertThat(crawlSourceRepository.findById(good.getId()).orElseThrow().getLastCrawledAt()).isNotNull();
     }
 
     /** 核心流转：收藏 → 计划 → 投递（channel 必填）→ 事件留痕；同阶段重复流转幂等 */
