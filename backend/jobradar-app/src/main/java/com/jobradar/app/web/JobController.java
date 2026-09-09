@@ -1,5 +1,7 @@
 package com.jobradar.app.web;
 
+import com.jobradar.core.dto.JobDtos.BatchDeleteRequest;
+import com.jobradar.core.dto.JobDtos.BatchDeleteResult;
 import com.jobradar.core.dto.JobDtos.IngestRequest;
 import com.jobradar.core.dto.JobDtos.IngestResponse;
 import com.jobradar.core.dto.JobDtos.JobCreateRequest;
@@ -65,6 +67,12 @@ public class JobController {
     @PatchMapping("/{id}")
     public JobDetail patch(@PathVariable long id, @RequestBody JobPatchRequest req) {
         return jobService.patch(id, req);
+    }
+
+    /** 批量删除：无关联数据的物理删除，有投递/匹配/推荐记录的降级为归档 */
+    @PostMapping("/batch-delete")
+    public BatchDeleteResult batchDelete(@Valid @RequestBody BatchDeleteRequest req) {
+        return jobService.batchDelete(req.ids());
     }
 
     @PostMapping("/ingest")

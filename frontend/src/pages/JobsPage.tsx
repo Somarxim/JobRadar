@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { api } from '@/api/client'
 import type { JobSummary } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
@@ -9,6 +10,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { COMPANY_TYPE_LABELS, COMPANY_TYPE_META, STAGE_META, deadlineClass, fmtDate } from '@/lib/labels'
@@ -17,6 +22,7 @@ import JobCreateDialog from '@/components/JobCreateDialog'
 import JobEditDialog from '@/components/JobEditDialog'
 import IngestDialog from '@/components/IngestDialog'
 import { STAGES } from '@/lib/labels'
+import { Trash2 } from 'lucide-react'
 
 /** 岗位库：搜索筛选 + 表格 + 手动录入/粘贴导入（roadmap W1 核心页） */
 export default function JobsPage() {
@@ -27,6 +33,10 @@ export default function JobsPage() {
   const [page, setPage] = useState(1)
   const [data, setData] = useState<{ items: JobSummary[]; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // 批量选择（跨页保留，翻页不清空——清理脏数据常要翻页挑）
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(() => {
     api.listJobs({
@@ -42,6 +52,44 @@ export default function JobsPage() {
   useEffect(load, [load])
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / 20)) : 1
+
+  const pageIds = data?.items.map((j) => j.id) ?? []
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
+
+  const toggle = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const togglePage = () => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id))
+      else pageIds.forEach((id) => next.add(id))
+      return next
+    })
+  }
+
+  const batchDelete = async () => {
+    setDeleting(true)
+    try {
+      const res = await api.batchDeleteJobs([...selected])
+      const parts = [`已删除 ${res.deleted} 个`]
+      if (res.archived > 0) parts.push(`${res.archived} 个已有投递/推荐记录，改为归档保留`)
+      if (res.missing > 0) parts.push(`${res.missing} 个不存在`)
+      toast.success(parts.join('，'))
+      setSelected(new Set())
+      setConfirming(false)
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '删除失败')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -91,9 +139,29 @@ export default function JobsPage() {
 
       {error && <p className="text-destructive text-sm">加载失败:{error}</p>}
 
+      {/* 批量操作栏：有选中时浮现在筛选栏下方 */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+          <span>已选 <b>{selected.size}</b> 个岗位</span>
+          <Button variant="destructive" size="sm" onClick={() => setConfirming(true)}>
+            <Trash2 className="size-3.5" />删除选中
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>取消选择</Button>
+        </div>
+      )}
+
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-8">
+              <input
+                type="checkbox"
+                className="size-4 align-middle accent-primary"
+                checked={allPageSelected}
+                onChange={togglePage}
+                aria-label="全选本页"
+              />
+            </TableHead>
             <TableHead>公司</TableHead>
             <TableHead>岗位</TableHead>
             <TableHead>城市</TableHead>
@@ -106,7 +174,16 @@ export default function JobsPage() {
         </TableHeader>
         <TableBody>
           {data?.items.map((j) => (
-            <TableRow key={j.id} className="cursor-pointer">
+            <TableRow key={j.id} className={cn('cursor-pointer', selected.has(j.id) && 'bg-muted/50')}>
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  className="size-4 align-middle accent-primary"
+                  checked={selected.has(j.id)}
+                  onChange={() => toggle(j.id)}
+                  aria-label={`选择 ${j.company.name} ${j.title}`}
+                />
+              </TableCell>
               <TableCell className="font-medium">
                 {/* 公司类型色点：低成本增加表格色彩层次，颜色语义与详情页徽章一致 */}
                 <span className={cn('mr-1.5 inline-block size-2 rounded-full align-middle', COMPANY_TYPE_META[j.company.company_type]?.dot ?? 'bg-zinc-300')} />
@@ -132,13 +209,35 @@ export default function JobsPage() {
           ))}
           {data && data.items.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                 暂无岗位，点击右上角「手动录入」或「粘贴导入」添加
               </TableCell>
             </TableRow>
           )}
         </TableBody>
       </Table>
+
+      {/* 批量删除确认：说明两种命运（无关联真删 / 有关联归档），防误删 */}
+      <Dialog open={confirming} onOpenChange={(open) => !open && setConfirming(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="size-5 text-destructive" />
+              删除选中的 {selected.size} 个岗位？
+            </DialogTitle>
+            <DialogDescription>
+              没有投递/匹配/推荐记录的岗位会被彻底删除；
+              已有记录的岗位会改为归档（从列表消失但保留历史数据），避免误删你的投递进度。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirming(false)} disabled={deleting}>取消</Button>
+            <Button variant="destructive" onClick={batchDelete} disabled={deleting}>
+              {deleting ? '删除中…' : '确认删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {data && data.total > 20 && (
         <div className="flex items-center justify-end gap-2 text-sm">

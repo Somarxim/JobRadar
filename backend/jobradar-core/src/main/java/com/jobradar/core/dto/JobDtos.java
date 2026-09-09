@@ -3,10 +3,12 @@ package com.jobradar.core.dto;
 import com.jobradar.core.domain.CompanyTier;
 import com.jobradar.core.domain.CompanyType;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 岗位相关 DTO。契约见 docs/api-design.md §2.1/2.2。
@@ -52,6 +54,18 @@ public final class JobDtos {
     public record JobPatchRequest(String title, String jdText, String jdSummary, String city,
                                   String salaryRange, String sourceUrl,
                                   LocalDate publishDate, LocalDate deadline, Boolean active) {
+    }
+
+    /** 批量删除请求。上限 200 防误操作/超长请求体 */
+    public record BatchDeleteRequest(
+            @NotEmpty(message = "ids 不能为空") @Size(max = 200) List<Long> ids) {
+    }
+
+    /**
+     * 批量删除结果：无关联数据（投递/匹配报告/推荐记录）的岗位物理删除，
+     * 有关联的降级为归档（active=false，保留历史数据）——删了岗位不该连投递记录一起蒸发。
+     */
+    public record BatchDeleteResult(int deleted, int archived, int missing) {
     }
 
     /** 统一导入（POST /jobs/ingest）：插件/粘贴共用。

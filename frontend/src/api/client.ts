@@ -71,6 +71,10 @@ export const api = {
   ingestJob: (body: Record<string, unknown>) =>
     request<{ job_id: number; already_exists: boolean; warnings: string[] }>(
       '/api/jobs/ingest', { method: 'POST', body: JSON.stringify(body) }),
+  // 批量删除：无关联数据的物理删除，有投递/匹配/推荐记录的归档保留
+  batchDeleteJobs: (ids: number[]) =>
+    request<{ deleted: number; archived: number; missing: number }>(
+      '/api/jobs/batch-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
 
   // Applications
   board: () => request<BoardResponse>('/api/applications'),
