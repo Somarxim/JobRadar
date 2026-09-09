@@ -69,8 +69,15 @@ public class MatchingService {
     /**
      * 触发匹配（POST /match/jobs/{job_id}）。同步执行（一次 LLM 调用约 3-10s）。
      * resumeId 为 null 时用默认简历；无默认简历/简历未解析/JD 为空 → 422 引导前置动作。
+     *
+     * <p>REQUIRES_NEW（W3-3 修正）：推荐管线会循环逐岗精评并 catch 单岗失败继续。
+     * 若沿用 REQUIRED 加入外层事务，内层抛出 RuntimeException 会把外层事务标记为
+     * rollback-only——即使调用方 catch 住，最终提交也会炸 UnexpectedRollbackException
+     * （Spring 事务经典陷阱）。独立事务让单岗失败只回滚自己；已产出的报告作为
+     * 24h 缓存独立保留，外层事务成败与之无关。对 Controller 直调场景（原本就是
+     * 最外层事务）行为不变。
      */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public MatchReportView match(long jobId, Long resumeId) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new NotFoundException("岗位不存在: id=" + jobId));

@@ -57,6 +57,14 @@ class JobRadarIntegrationTest {
     private com.jobradar.core.repository.CrawlSourceRepository crawlSourceRepository;
     @Autowired
     private com.jobradar.core.crawl.CrawlerService crawlerService;
+    @Autowired
+    private com.jobradar.core.service.RecommendService recommendService;
+    @Autowired
+    private com.jobradar.core.repository.JobRepository jobRepository;
+    @Autowired
+    private com.jobradar.core.repository.RecommendationRepository recommendationRepository;
+    @Autowired
+    private com.jobradar.core.repository.ApplicationRepository applicationRepository;
     /** 抓取层打桩：测试不依赖外网（真实站点的连通性/反爬属于运行环境，不属于逻辑正确性） */
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.jobradar.core.crawl.PageFetcher pageFetcher;
@@ -302,6 +310,88 @@ class JobRadarIntegrationTest {
         assertThat(detail.parsed()).isNull();
         // 首份自动默认
         assertThat(detail.isDefault()).isTrue();
+    }
+
+    /**
+     * W3-3 推荐管线：候选过滤（无关键词/已进看板/近 7 天推过 三类排除）→
+     * 无简历时纯规则粗排降级 → 重跑幂等（PENDING 重算、反馈保留）→
+     * feedback accept 自动建看板卡片、ignore 记标签。
+     */
+    @Test
+    void recommendPipelineDegradesIdempotentAndClosesLoop() {
+        // 命中方向词 ×2（应被推荐）。共享库里有其他测试遗留岗位竞争 Top 5，
+        // 故把这两条的分顶满：3 个方向词（45 封顶）+ 薪资/截止日/近日发布（+20）= 65 稳进。
+        var hitA = jobService.create(new JobCreateRequest("推荐测试甲", null, "Java 后端工程师（大模型方向）",
+                "负责大模型推理平台的 Java 后端开发", "西安", "15-25K", null,
+                java.time.LocalDate.now(), java.time.LocalDate.now().plusDays(30)));
+        var hitB = jobService.create(new JobCreateRequest("推荐测试乙", null, "大模型算法工程师",
+                "参与大模型训练与推理优化，使用 Python", "北京", "30-50K", null,
+                java.time.LocalDate.now(), java.time.LocalDate.now().plusDays(30)));
+        // 无方向词（粗筛 0 分，不推荐）
+        var miss = jobService.create(new JobCreateRequest("推荐测试丙", null, "行政前台",
+                "负责前台接待与访客登记", "西安", null, null, null, null));
+        // 命中方向词但已进看板（不重复推荐）
+        var boarded = jobService.create(new JobCreateRequest("推荐测试丁", null, "Java 开发工程师",
+                "Java 业务开发", null, null, null, null, null));
+        applicationService.create(new ApplicationCreateRequest(boarded.id(), null, null, null, null));
+        // 命中方向词但近 7 天内推荐过（防重复窗口）
+        var pushed = jobService.create(new JobCreateRequest("推荐测试戊", null, "Python 后端工程师",
+                "Python 后端开发", null, null, null, null, null));
+        var past = new com.jobradar.core.domain.Recommendation();
+        past.setJob(jobRepository.findById(pushed.id()).orElseThrow());
+        past.setRecDate(java.time.LocalDate.now().minusDays(3));
+        past.setRank(1);
+        past.setReason("历史推荐");
+        recommendationRepository.save(past);
+
+        // 无默认简历 → 纯规则粗排降级，LLM 不参与
+        var report = recommendService.runPipeline();
+        assertThat(report.llmScored()).isZero();
+        assertThat(report.notes()).anyMatch(n -> n.contains("无默认简历"));
+
+        var recs = recommendService.today();
+        var byJob = recs.stream().collect(java.util.stream.Collectors.toMap(
+                com.jobradar.core.dto.RecommendDtos.RecommendationView::jobId, r -> r, (x, y) -> x));
+        assertThat(byJob).containsKeys(hitA.id(), hitB.id());
+        assertThat(byJob).doesNotContainKeys(miss.id(), boarded.id(), pushed.id());
+        assertThat(recs).allMatch(r -> !r.llmScored());
+        // 位次连续、理由可读
+        assertThat(recs.stream().map(com.jobradar.core.dto.RecommendDtos.RecommendationView::rank).sorted().toList())
+                .isEqualTo(java.util.stream.IntStream.rangeClosed(1, recs.size()).boxed().toList());
+        assertThat(byJob.get(hitA.id()).reason()).contains("方向命中");
+
+        // 重跑幂等：PENDING 全部重算，同日同岗不重复（(job_id, rec_date) 唯一约束兜底）
+        int firstCount = recommendService.today().size();
+        recommendService.runPipeline();
+        var rerun = recommendService.today();
+        assertThat(rerun).hasSize(firstCount);
+        assertThat(rerun.stream().map(com.jobradar.core.dto.RecommendDtos.RecommendationView::jobId).distinct().count())
+                .isEqualTo(rerun.size());
+
+        // 反馈闭环：accept → 自动建看板卡片；ignore → 记标签
+        var accRec = rerun.stream().filter(r -> r.jobId().equals(hitA.id())).findFirst().orElseThrow();
+        var afterAccept = recommendService.feedback(accRec.id(),
+                new com.jobradar.core.dto.RecommendDtos.FeedbackRequest("accept", null));
+        assertThat(afterAccept.status()).isEqualTo("accepted");
+        assertThat(applicationRepository.findByJobId(hitA.id())).isPresent();
+
+        var ignRec = rerun.stream().filter(r -> r.jobId().equals(hitB.id())).findFirst().orElseThrow();
+        var afterIgnore = recommendService.feedback(ignRec.id(),
+                new com.jobradar.core.dto.RecommendDtos.FeedbackRequest("ignore", "方向不符"));
+        assertThat(afterIgnore.status()).isEqualTo("ignored");
+        assertThat(afterIgnore.feedbackTag()).isEqualTo("方向不符");
+
+        // 已反馈的记录是用户资产：重跑保留不被清；已 accept 的岗位进 7 天窗口不再推
+        recommendService.runPipeline();
+        var afterRerun = recommendService.today();
+        var byJobAfter = afterRerun.stream().collect(java.util.stream.Collectors.toMap(
+                com.jobradar.core.dto.RecommendDtos.RecommendationView::jobId, r -> r, (x, y) -> x));
+        assertThat(byJobAfter.get(hitA.id()).status()).isEqualTo("accepted");
+        assertThat(byJobAfter.get(hitB.id()).status()).isEqualTo("ignored");
+        // accept 幂等：重跑 + 再 accept 不产生重复看板卡片
+        recommendService.feedback(byJobAfter.get(hitA.id()).id(),
+                new com.jobradar.core.dto.RecommendDtos.FeedbackRequest("accept", null));
+        assertThat(applicationRepository.findByJobId(hitA.id())).isPresent();
     }
 
     private int boardTotal() {

@@ -1,21 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
-import type { DashboardSummary } from '@/api/types'
+import type { DashboardSummary, Recommendation } from '@/api/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import RecommendationSection from '@/components/RecommendationSection'
 import { STAGE_META } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import { AlarmClock, ListTodo, TrendingUp } from 'lucide-react'
 
-/** 仪表盘：漏斗数字卡 + 本周进展 + DDL 倒计时 + 待办（roadmap W1 验收页） */
+/** 仪表盘：漏斗数字卡 + 今日推荐 + 本周进展 + DDL 倒计时 + 待办（roadmap W1 验收页） */
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null)
+  const [recs, setRecs] = useState<Recommendation[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const loadRecs = useCallback(() => {
+    // 推荐区独立加载：即使推荐接口失败也不拖垮整个仪表盘
+    api.todayRecommendations().then(setRecs).catch(() => setRecs([]))
+  }, [])
 
   useEffect(() => {
     api.summary().then(setData).catch((e) => setError(e.message))
-  }, [])
+    loadRecs()
+  }, [loadRecs])
 
   if (error) return <p className="text-destructive">加载失败：{error}</p>
   if (!data) return <p className="text-muted-foreground">加载中…</p>
@@ -43,6 +51,15 @@ export default function DashboardPage() {
           )
         })}
       </div>
+
+      {/* 今日推荐：W3-3 每日管线产出，反馈闭环（感兴趣→自动进看板） */}
+      <RecommendationSection
+        items={recs ?? []}
+        onItemChanged={(updated) =>
+          setRecs((prev) => prev?.map((r) => (r.id === updated.id ? updated : r)) ?? null)
+        }
+        onRefresh={loadRecs}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* 投递进展：累计投递 = 当前处于「已投递/笔试/面试/Offer」阶段的申请数（在途有效投递）。
