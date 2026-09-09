@@ -98,11 +98,15 @@ class JobRadarIntegrationTest {
     }
 
     /**
-     * W3-1 爬虫管线：selector-list 解析 → 别名归一 → 落库；
-     * 第二轮全量重跑命中 dedupe_hash 幂等跳过；坏源（未注册解析器）失败隔离不影响好源。
+     * W3-1/W3-2 爬虫管线：selector-list 静态页 + nowcoder-search 分页 JSON API 双形态 →
+     * 别名归一 → 落库；第二轮全量重跑命中 dedupe_hash 幂等跳过；
+     * 跨页重复条目去重；坏源（未注册解析器）失败隔离不影响好源。
      */
     @Test
     void crawlPipelineIsIdempotentAndIsolatesFailures() throws Exception {
+        // V5 种子源（enabled=true）也会走同一个打桩 fetcher，先清场保证断言只针对本测试的源
+        crawlSourceRepository.deleteAll();
+
         var good = new com.jobradar.core.domain.CrawlSource();
         good.setName("集成测试源");
         good.setUrl("https://example.com/jobs/list");
@@ -114,6 +118,19 @@ class JobRadarIntegrationTest {
                 """);
         crawlSourceRepository.save(good);
 
+        // W3-2：JSON API 分页源（牛客形态）——两页数据，跨页有一条重复
+        var niuke = new com.jobradar.core.domain.CrawlSource();
+        niuke.setName("牛客测试源");
+        niuke.setUrl("https://nowpick.nowcoder.com/u/job/square-search");
+        niuke.setParser("nowcoder-search");
+        niuke.setCategory(com.jobradar.core.domain.CrawlCategory.COMMUNITY);
+        niuke.setMeta("""
+                {"platform":"niuke",
+                 "request":{"method":"POST","contentType":"form","params":{"query":"大模型","recruitType":"1"}},
+                 "pagination":{"pageParam":"page","start":1,"pages":2}}
+                """);
+        crawlSourceRepository.save(niuke);
+
         var bad = new com.jobradar.core.domain.CrawlSource();
         bad.setName("坏源");
         bad.setUrl("https://example.com/broken");
@@ -121,19 +138,55 @@ class JobRadarIntegrationTest {
         bad.setCategory(com.jobradar.core.domain.CrawlCategory.COMMUNITY);
         crawlSourceRepository.save(bad);
 
-        org.mockito.Mockito.when(pageFetcher.fetch(org.mockito.ArgumentMatchers.anyString()))
-                .thenReturn("""
-                        <html><body><table>
-                          <tr class="job-row">
-                            <td><a class="jt" href="/job/101">Java工程师（2026校招）</a></td>
-                            <td class="co">航空工业631所</td><td class="city">西安</td><td class="date">2026-09-01</td>
-                          </tr>
-                          <tr class="job-row">
-                            <td><a class="jt" href="/job/102">软件测试工程师</a></td>
-                            <td class="co">爬虫测试公司</td><td class="city">北京</td>
-                          </tr>
-                        </table></body></html>
-                        """);
+        String htmlFixture = """
+                <html><body><table>
+                  <tr class="job-row">
+                    <td><a class="jt" href="/job/101">Java工程师（2026校招）</a></td>
+                    <td class="co">航空工业631所</td><td class="city">西安</td><td class="date">2026-09-01</td>
+                  </tr>
+                  <tr class="job-row">
+                    <td><a class="jt" href="/job/102">软件测试工程师</a></td>
+                    <td class="co">爬虫测试公司</td><td class="city">北京</td>
+                  </tr>
+                </table></body></html>
+                """;
+        String ncPage1 = """
+                {"code":0,"msg":"OK","data":{"datas":[
+                  {"data":{"id":443976,"jobName":"【27届校招】AI产品经理（加急）(A235510)",
+                    "ext":"{\\"infos\\":\\"负责大模型产品策划\\",\\"requirements\\":\\"本科以上\\"}",
+                    "jobCity":"北京","deliverBegin":1786464000000,"deliverEnd":1789084800000,
+                    "refreshTime":1788931336000,"salaryMin":20,"salaryMax":40,"salaryMonth":15,
+                    "recommendInternCompany":{"companyName":"美团"}}},
+                  {"data":{"id":411304,"jobName":"AI软件工程师","ext":"{\\"infos\\":\\"大模型应用开发\\"}",
+                    "jobCity":"西安,上海,成都","deliverBegin":1786464000000,"deliverEnd":1881193690000,
+                    "refreshTime":1788931336000,"salaryMin":0,"salaryMax":9999999,"salaryMonth":0,
+                    "recommendInternCompany":{"companyName":"华为软件技术有限公司"}}}
+                ]}}
+                """;
+        String ncPage2 = """
+                {"code":0,"msg":"OK","data":{"datas":[
+                  {"data":{"id":443976,"jobName":"【27届校招】AI产品经理（加急）(A235510)",
+                    "ext":"{\\"infos\\":\\"负责大模型产品策划\\",\\"requirements\\":\\"本科以上\\"}",
+                    "jobCity":"北京","deliverBegin":1786464000000,"deliverEnd":1789084800000,
+                    "refreshTime":1788931336000,"salaryMin":20,"salaryMax":40,"salaryMonth":15,
+                    "recommendInternCompany":{"companyName":"美团"}}},
+                  {"data":{"id":465013,"jobName":"Java 后端","jobCity":"上海",
+                    "deliverBegin":1786464000000,"deliverEnd":1789084800000,
+                    "refreshTime":1788931336000,"salaryMin":16,"salaryMax":22,"salaryMonth":18,
+                    "recommendInternCompany":{"companyName":"兴证全球基金"}}}
+                ]}}
+                """;
+        org.mockito.Mockito.when(pageFetcher.fetch(
+                        org.mockito.ArgumentMatchers.any(com.jobradar.core.domain.CrawlSource.class),
+                        org.mockito.ArgumentMatchers.anyInt()))
+                .thenAnswer(inv -> {
+                    com.jobradar.core.domain.CrawlSource s = inv.getArgument(0);
+                    int page = inv.getArgument(1);
+                    if ("nowcoder-search".equals(s.getParser())) {
+                        return page == 1 ? ncPage1 : ncPage2;
+                    }
+                    return htmlFixture;
+                });
 
         var first = crawlerService.runAll();
         var goodFirst = first.results().stream()
@@ -145,6 +198,14 @@ class JobRadarIntegrationTest {
                 .filter(r -> r.sourceName().equals("坏源")).findFirst().orElseThrow();
         assertThat(badResult.error()).contains("未注册的解析器");
 
+        // JSON API 源：两页 4 条 → 3 新增 + 1 跨页去重
+        var niukeFirst = first.results().stream()
+                .filter(r -> r.sourceName().equals("牛客测试源")).findFirst().orElseThrow();
+        assertThat(niukeFirst.error()).isNull();
+        assertThat(niukeFirst.fetched()).isEqualTo(4);
+        assertThat(niukeFirst.created()).isEqualTo(3);
+        assertThat(niukeFirst.duplicated()).isEqualTo(1);
+
         // 公司别名归一：航空工业631所 → 中国航空工业计算技术研究所
         var job = jobService.search("Java工程师", null, null, null, null, null, "created_desc", 1, 10)
                 .items().stream()
@@ -152,13 +213,36 @@ class JobRadarIntegrationTest {
         assertThat(job.company().name()).isEqualTo("中国航空工业计算技术研究所");
         assertThat(job.sourcePlatform()).isEqualTo("guopin");
 
-        // 幂等：全量重跑，0 新增 2 去重；last_crawled_at 已更新
+        // 牛客条目字段映射：标题清洗/薪资/截止日/详情链接
+        var aiJob = jobService.search("AI产品经理", null, null, null, null, null, "created_desc", 1, 10)
+                .items().stream()
+                .filter(j -> j.title().contains("AI产品经理")).findFirst().orElseThrow();
+        assertThat(aiJob.title()).isEqualTo("AI产品经理（加急）"); // 【批次】与 (A235510) 编号已剥离
+        assertThat(aiJob.company().name()).isEqualTo("美团");
+        assertThat(aiJob.salaryRange()).isEqualTo("20-40K·15薪");
+        assertThat(aiJob.deadline()).isNotNull();
+        assertThat(aiJob.sourceUrl()).isEqualTo("https://www.nowcoder.com/jobs/443976");
+        assertThat(aiJob.sourcePlatform()).isEqualTo("niuke");
+
+        // 面议 + 长期投递窗口 → salary/deadline 均不落库
+        var hwJob = jobService.search("AI软件工程师", null, null, null, null, null, "created_desc", 1, 10)
+                .items().stream()
+                .filter(j -> j.title().equals("AI软件工程师")).findFirst().orElseThrow();
+        assertThat(hwJob.salaryRange()).isNull();
+        assertThat(hwJob.deadline()).isNull();
+
+        // 幂等：全量重跑，0 新增；last_crawled_at 已更新
         var second = crawlerService.runAll();
         var goodSecond = second.results().stream()
                 .filter(r -> r.sourceName().equals("集成测试源")).findFirst().orElseThrow();
         assertThat(goodSecond.created()).isZero();
         assertThat(goodSecond.duplicated()).isEqualTo(2);
+        var niukeSecond = second.results().stream()
+                .filter(r -> r.sourceName().equals("牛客测试源")).findFirst().orElseThrow();
+        assertThat(niukeSecond.created()).isZero();
+        assertThat(niukeSecond.duplicated()).isEqualTo(4); // 4 条全量重抓全部命中去重
         assertThat(crawlSourceRepository.findById(good.getId()).orElseThrow().getLastCrawledAt()).isNotNull();
+        assertThat(crawlSourceRepository.findById(niuke.getId()).orElseThrow().getLastCrawledAt()).isNotNull();
     }
 
     /** 核心流转：收藏 → 计划 → 投递（channel 必填）→ 事件留痕；同阶段重复流转幂等 */
