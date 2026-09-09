@@ -78,3 +78,7 @@ jobradar:
   # 本地文件存储：简历 PDF 原件目录（~ 展开由 ResumeService 处理）
   storage:
     resume-dir: ${JOBRADAR_RESUME_DIR:~/.jobradar/resumes}
+  # W3 爬虫调度：每日一轮抓取启用中的 crawl_sources；enabled=false 可整体关停
+  crawler:
+    enabled: ${CRAWLER_ENABLED:true}
+    cron: ${CRAWLER_CRON:0 30 7 * * *}
