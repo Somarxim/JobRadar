@@ -69,6 +69,15 @@
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>${pdfbox.version}</version>
+            <exclusions>
+                <!-- PDFBox 传入了真正的 commons-logging jar，与 spring-jcl 同包名冲突，
+                     且其发现逻辑会向 stdout 打印警告——MCP stdio 模式下这会污染协议流。
+                     排除后 spring-jcl 作为同包名 drop-in 接管，PDFBox 日志照常走 SLF4J -->
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- Jsoup：W3 爬虫管线。选 Jsoup 而非裸 Java HTTP Client 的理由：抓取 + CSS
              选择器解析一体，静态页一个依赖全覆盖；遇 JS 渲染页（SPA）按站点适配时
