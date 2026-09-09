@@ -31,10 +31,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>Flyway 迁移脚本本身也被测试覆盖（脚本写错容器启动即失败）。</li>
  * </ul>
  *
- * <p>LLM 在测试中自动降级：测试环境无 API key → LlmService 模型为 null →
+ * <p>LLM 在测试中强制降级：properties 把 api-key 置空（覆盖开发机环境变量，避免
+ * 测试行为依赖本机是否 export 了 key）→ LlmService 模型为 null →
  * 解析类能力走降级路径（正好覆盖「无 LLM 时系统可用」的验收标准）。
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        "jobradar.llm.parse.api-key=",
+        "jobradar.llm.vision.api-key=",
+})
 @Testcontainers
 class JobRadarIntegrationTest {
 
@@ -67,6 +71,23 @@ class JobRadarIntegrationTest {
         assertThat(first.jobId()).isEqualTo(created.id());
         assertThat(second.alreadyExists()).isTrue();
         assertThat(second.jobId()).isEqualTo(created.id());
+    }
+
+    /**
+     * W2-1 修正验收：hints 提供 company/title 时，AI 只做 enrichment 补全；
+     * AI 不可用（测试环境无 key）降级为警告而非 422，岗位照常入库。
+     */
+    @Test
+    void ingestWithHintsSurvivesLlmDown() {
+        var res = jobService.ingest(new IngestRequest("manual_paste", null,
+                "负责大模型应用平台后端开发，base 北京，截止日期 2026-10-01……", null, null, null,
+                new IngestRequest.Hints("测试公司乙", "AI 应用工程师", null, null, null)));
+
+        assertThat(res.alreadyExists()).isFalse();
+        assertThat(res.parsed().company()).isEqualTo("测试公司乙");
+        assertThat(res.parsed().title()).isEqualTo("AI 应用工程师");
+        // AI 不可用 → enrichment 失败降级为警告（而非 W2-1 修正前的"不调 AI 或硬 422"）
+        assertThat(res.warnings()).anyMatch(w -> w.contains("AI 补全不可用"));
     }
 
     /** 核心流转：收藏 → 计划 → 投递（channel 必填）→ 事件留痕；同阶段重复流转幂等 */

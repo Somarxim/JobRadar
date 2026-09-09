@@ -23,8 +23,8 @@ interface PosterImage {
 
 /**
  * 粘贴导入对话框（POST /api/jobs/ingest）。
- * 两条输入路径二选一：JD 文本（LLM 文本解析）或海报图片（多模态视觉理解）；
- * 公司/岗位等字段留空由 AI 提取，手填始终优先（后端合并策略）。
+ * 两条输入路径二选一：JD 文本（LLM 文本解析）或海报图片（两段式：视觉转录 + 文本结构化）；
+ * 公司/岗位建议手填（AI 兜底），其余字段由 AI 自动补全（W2-1 修正：AI 主职是补全而非识别）。
  */
 export default function IngestDialog({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false)
@@ -100,18 +100,19 @@ export default function IngestDialog({ onDone }: { onDone: () => void }) {
         <DialogHeader>
           <DialogTitle>粘贴导入</DialogTitle>
           <DialogDescription>
-            粘贴 JD 全文或上传招聘海报图片，公司与岗位名可由 AI 自动提取（手填优先）。
+            粘贴 JD 全文或上传招聘海报图片。公司/岗位建议手填（留空由 AI 兜底识别），
+            城市、截止日期等字段由 AI 自动补全。
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
-              <Label>公司 <span className="text-muted-foreground font-normal">（可选）</span></Label>
-              <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="留空由 AI 提取" />
+              <Label>公司 <span className="text-muted-foreground font-normal">（建议填写）</span></Label>
+              <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="留空由 AI 兜底识别" />
             </div>
             <div className="grid gap-1.5">
-              <Label>岗位 <span className="text-muted-foreground font-normal">（可选）</span></Label>
-              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="留空由 AI 提取" />
+              <Label>岗位 <span className="text-muted-foreground font-normal">（建议填写）</span></Label>
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="留空由 AI 兜底识别" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">

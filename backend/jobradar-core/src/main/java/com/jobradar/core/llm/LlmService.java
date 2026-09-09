@@ -117,6 +117,11 @@ public class LlmService {
     /**
      * JD 全文 → 结构化岗位信息。失败（未配置/网络/解析错误）返回 Optional.empty()，
      * 由调用方降级为人工填写流程（契约 422）。
+     *
+     * <p>职责定位（W2-1 修正）：公司/岗位名主要由调用方 hints 提供（人工手填或插件
+     * 从页面 DOM 提取），本方法的主职是补全 city/salary/deadline 等 enrichment
+     * 字段——JD 正文经常根本不出现公司名，强求 AI 识别只会诱发幻觉。因此 prompt
+     * 明确「未出现则 null，禁止猜测」。
      */
     public Optional<ParsedJob> parseJd(String rawText) {
         if (parseModel == null || overBudget("jd_parse", parseConfig.model())) {
@@ -127,12 +132,16 @@ public class LlmService {
                 你是招聘信息解析助手。请从下面的招聘 JD 文本中提取关键字段。
 
                 要求：
-                - company：公司官方全称（去掉"招聘""人力资源部"等后缀）
-                - title：岗位名称（含校招/实习等批次后缀，如"（2026校招）"）
+                - company：公司官方全称（去掉"招聘""人力资源部"等后缀）。
+                  仅在文本中明确出现时提取，否则输出 null，禁止猜测或编造
+                - title：岗位名称（含校招/实习等批次后缀，如"（2026校招）"）。
+                  同样仅在明确出现时提取，否则 null
                 - city：工作城市（多个城市取第一个）
                 - salary_range：薪资范围原文（如"18-25万/年"），无则 null
                 - deadline：投递截止日期，格式 yyyy-MM-dd，无则 null
                 - publish_date：发布日期，格式 yyyy-MM-dd，无则 null
+                - 忽略文本中与本岗位无关的内容：平台安全提示/防诈骗声明、
+                  "看过该职位的人还在看"等职位推荐、广告、网站导航与页脚
                 - 除上述 JSON 外不要输出任何其他内容
                 %s
 
@@ -166,12 +175,25 @@ public class LlmService {
     }
 
     /**
-     * 海报图片 → 结构化岗位信息（多模态视觉理解，替代 OCR：
-     * 模型同时读懂版式与文字，还能把图中信息整理成 JD 文本沉淀）。
-     * 失败返回 Optional.empty()，调用方降级人工填写。
+     * 海报图片 → 结构化岗位信息（两段式管线，W2-2 修正）：
+     * <ol>
+     *   <li><b>转录</b>（视觉模型）：忠实转录海报全部文字。海报信息密度远高于纯文本 JD，
+     *       一步到位直出 JSON 会约束模型发挥；转录稿本身即海报的「文字层存档」（落 jd_text）。</li>
+     *   <li><b>结构化</b>（文本模型）：从转录稿提取字段。后续调 prompt 迭代只花文本模型
+     *       的 token，不必反复烧视觉模型重跑同一张图——调试成本差一个数量级。</li>
+     * </ol>
+     * 任一阶段失败返回 Optional.empty()，调用方降级人工填写。
      */
     public Optional<ParsedJob> parsePoster(String imageBase64, String mediaType) {
-        if (visionModel == null || overBudget("poster_parse", visionConfig.model())) {
+        return transcribePoster(imageBase64, mediaType)
+                .flatMap(transcription -> structurePosterText(transcription)
+                        .map(p -> new ParsedJob(p.company(), p.title(), p.city(),
+                                p.salaryRange(), p.deadline(), p.publishDate(), transcription)));
+    }
+
+    /** 第一阶段：视觉模型忠实转录海报文字（替代 OCR：模型同时读懂版式与文字） */
+    public Optional<String> transcribePoster(String imageBase64, String mediaType) {
+        if (visionModel == null || overBudget("poster_transcribe", visionConfig.model())) {
             return Optional.empty();
         }
         byte[] bytes;
@@ -181,22 +203,15 @@ public class LlmService {
             log.warn("海报图片 base64 解码失败");
             return Optional.empty();
         }
-        var converter = new BeanOutputConverter<>(ParsedJob.class);
         String promptText = """
-                你是招聘信息解析助手。这是一张招聘海报图片，请从中提取关键字段。
+                请忠实转录这张招聘海报的全部文字内容，按海报的版块结构组织输出
+                （标题、公司/单位介绍、岗位信息、任职要求、福利、投递方式等）。
 
                 要求：
-                - company：公司/单位官方全称
-                - title：岗位名称（含校招/实习等批次后缀；多个岗位取最主要的一个）
-                - city：工作城市（多个城市取第一个）
-                - salary_range：薪资范围原文，无则 null
-                - deadline：投递截止日期，格式 yyyy-MM-dd，无则 null
-                - publish_date：发布日期，格式 yyyy-MM-dd，无则 null
-                - jd_text：把海报中与岗位相关的信息（职责、要求、福利、投递方式等）
-                  整理成连贯的中文文本，供存档检索
-                - 除上述 JSON 外不要输出任何其他内容
-                %s
-                """.formatted(converter.getFormat());
+                - 只转录海报中真实出现的文字，不要补充、推测或改写
+                - 保留数字、日期、联系方式、二维码旁说明等关键信息的原始写法
+                - 按阅读顺序输出纯文本，不要输出任何转录之外的内容
+                """;
 
         long start = System.currentTimeMillis();
         try {
@@ -207,13 +222,62 @@ public class LlmService {
             ChatResponse resp = visionModel.call(new Prompt(msg,
                     OpenAiChatOptions.builder().model(visionConfig.model())
                             .temperature(PARSE_TEMPERATURE).build()));
+            String text = resp.getResult().getOutput().getText();
+            recordUsage("poster_transcribe", visionConfig.model(), resp.getMetadata().getUsage(),
+                    true, null, elapsed(start));
+            return Optional.ofNullable(text).filter(t -> !t.isBlank());
+        } catch (Exception e) {
+            log.warn("海报转录失败: {}", e.getMessage());
+            recordUsage("poster_transcribe", visionConfig.model(), null, false,
+                    truncate(e.getMessage()), elapsed(start));
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * 第二阶段：文本模型把转录稿结构化为 ParsedJob。
+     * 海报特有问题：宣讲会/校招启动海报常只有单位没有具体岗位——此时输出
+     * 「<批次>校园招聘」占位岗位名（如"2026届校园招聘"），后续看到具体 JD 再人工拆分。
+     */
+    public Optional<ParsedJob> structurePosterText(String transcription) {
+        if (parseModel == null || overBudget("poster_struct", parseConfig.model())) {
+            return Optional.empty();
+        }
+        var converter = new BeanOutputConverter<>(ParsedJob.class);
+        String prompt = """
+                你是招聘信息解析助手。下面是一段招聘海报的文字转录稿，请提取关键字段。
+
+                要求：
+                - company：公司/单位官方全称（海报一定有招聘单位，务必提取）
+                - title：岗位名称（含校招/实习等批次后缀）。多个具体岗位取最主要的一个；
+                  若转录稿未列出具体岗位（如校招启动/宣讲会海报），输出「<批次>校园招聘」
+                  （批次从转录稿识别，如"2026届校园招聘"；识别不到批次就写"校园招聘"）
+                - city：工作城市（多个城市取第一个），无则 null
+                - salary_range：薪资范围原文，无则 null
+                - deadline：投递截止日期，格式 yyyy-MM-dd，无则 null
+                - publish_date：发布日期，格式 yyyy-MM-dd，无则 null
+                - jd_text 输出 null（转录稿全文由调用方存档，无需重复）
+                - 除上述 JSON 外不要输出任何其他内容
+                %s
+
+                海报转录稿：
+                ---
+                %s
+                ---
+                """.formatted(converter.getFormat(), transcription);
+
+        long start = System.currentTimeMillis();
+        try {
+            ChatResponse resp = parseModel.call(new Prompt(prompt,
+                    OpenAiChatOptions.builder().model(parseConfig.model())
+                            .temperature(PARSE_TEMPERATURE).build()));
             ParsedJob parsed = converter.convert(resp.getResult().getOutput().getText());
-            recordUsage("poster_parse", visionConfig.model(), resp.getMetadata().getUsage(),
+            recordUsage("poster_struct", parseConfig.model(), resp.getMetadata().getUsage(),
                     true, null, elapsed(start));
             return Optional.ofNullable(parsed);
         } catch (Exception e) {
-            log.warn("海报解析失败: {}", e.getMessage());
-            recordUsage("poster_parse", visionConfig.model(), null, false,
+            log.warn("海报转录稿结构化失败: {}", e.getMessage());
+            recordUsage("poster_struct", parseConfig.model(), null, false,
                     truncate(e.getMessage()), elapsed(start));
             return Optional.empty();
         }

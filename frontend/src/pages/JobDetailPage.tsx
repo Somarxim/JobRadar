@@ -255,7 +255,8 @@ export default function JobDetailPage() {
             <CardHeader><CardTitle className="text-base">职位描述</CardTitle></CardHeader>
             <CardContent>
               {job.jd_text
-                ? <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed">{job.jd_text}</pre>
+                // JD 可能极长（插件采集的全文）：限高滚动，避免把下方内容顶出首屏
+                ? <pre className="whitespace-pre-wrap break-words text-sm font-sans leading-relaxed max-h-[60vh] overflow-y-auto">{job.jd_text}</pre>
                 : <p className="text-sm text-muted-foreground">暂无 JD，可点击右上角「编辑」补充</p>}
             </CardContent>
           </Card>
