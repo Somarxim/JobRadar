@@ -39,8 +39,8 @@
 - [x] `crawler-engineering.md` —— Jsoup/Playwright 取舍、去重算法（hash + 别名归一）、调度与幂等、失败隔离、合规边界（2026-09-10 填充）
 
 ### W4 —— 协议与答辩
-- [ ] `mcp-protocol.md` —— MCP 协议原理（stdio/JSON-RPC）、Tools/Resources/Prompts 三要素、与 Function Calling 的关系、为什么 MCP 是新范式
-- [ ] `interview-guide.md` —— **重点交付**：3 分钟项目介绍话术（STAR）、架构图白板讲解路径、深度追问 Q&A 树（按"为什么这么设计→怎么实现的→遇到什么问题→如何验证效果"四层组织）
+- [x] `mcp-protocol.md` —— MCP 协议原理（stdio/JSON-RPC）、Tools/Resources/Prompts 三要素、与 Function Calling 的关系、为什么 MCP 是新范式（2026-09-10 填充）
+- [x] `interview-guide.md` —— **重点交付**：3 分钟项目介绍话术（STAR）、架构图白板讲解路径、深度追问 Q&A 树（2026-09-10 填充）
 
 ## 配套机制
 

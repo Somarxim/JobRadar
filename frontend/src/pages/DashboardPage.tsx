@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import RecommendationSection from '@/components/RecommendationSection'
 import { FunnelChart, TrendChart, TypePie } from '@/components/StatsCharts'
 import WeeklyReportCard from '@/components/WeeklyReportCard'
+import { ErrorState, LoadingState } from '@/components/StatusStates'
 import { STAGE_META } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import { AlarmClock, ListTodo, TrendingUp } from 'lucide-react'
@@ -18,20 +19,24 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const loadSummary = useCallback(() => {
+    api.summary().then(setData).catch((e) => setError(e.message))
+  }, [])
+
   const loadRecs = useCallback(() => {
     // 推荐区独立加载：即使推荐接口失败也不拖垮整个仪表盘
     api.todayRecommendations().then(setRecs).catch(() => setRecs([]))
   }, [])
 
   useEffect(() => {
-    api.summary().then(setData).catch((e) => setError(e.message))
+    loadSummary()
     loadRecs()
     // 图表区独立加载：stats 失败只隐藏图表，不影响主视图
     api.dashboardStats(30).then(setStats).catch(() => setStats(null))
-  }, [loadRecs])
+  }, [loadSummary, loadRecs])
 
-  if (error) return <p className="text-destructive">加载失败：{error}</p>
-  if (!data) return <p className="text-muted-foreground">加载中…</p>
+  if (error) return <ErrorState message={error} onRetry={loadSummary} />
+  if (!data) return <LoadingState />
 
   const { funnel, this_week: week, upcoming_deadlines: deadlines, next_actions: actions } = data
 

@@ -2,6 +2,7 @@
 
 | 版本 | 日期 | 状态 |
 |---|---|---|
+| v0.17 | 2026-09-10 | W4-4 完成：全页统一加载/错误/空态（StatusStates + 重试入口）、README 快速开始补全、learning 新增 mcp-protocol.md 与 interview-guide.md（STAR 话术 + Q&A 树 + 演示动线）。W4 开发项全部交付，验收待用户联调 |
 | v0.16 | 2026-09-10 | W4-3 完成：Dashboard 图表区（漏斗/30天趋势/公司类型分布，recharts）+ 每周复盘卡片（W4-2 前端出口，AI 叙事按需生成） |
 | v0.15 | 2026-09-10 | W4-2 完成：周报 Agent（确定性数据组装 + LLM 叙事降级分层；REST /weekly-report + MCP weekly_report 支持历史周回看） |
 | v0.14 | 2026-09-10 | W4-1 完成：MCP Server 落地（10 tools + 2 resources + 3 prompts，stdio 协议冒烟通过，含 commons-logging 排雷与 LLM/简历装配下沉 core） |
@@ -73,9 +74,9 @@
 - [x] MCP Server：Spring AI MCP Starter，10 个 tools + resources + prep_interview prompt（stdio 协议级冒烟通过；Claude Desktop 联调待用户在客户端配置后重启）
 - [x] 周报 Agent（确定性数据 + LLM 叙事分层，REST/MCP 双出口，支持历史周回看）
 - [x] Dashboard 图表完善（漏斗图/趋势图/类型分布 + 每周复盘卡片）
-- [ ] 打磨：加载态/空态/错误处理；README 完善 + 演示录屏 + 架构图美化
+- [x] 打磨：加载态/空态/错误处理（统一 StatusStates 组件 + 全页重试入口）；README 完善；docs/learning/interview-guide.md + mcp-protocol.md 成稿（演示录屏待用户按 §2 脚本录制）
 
-**验收**：Claude Desktop 内完成「录入-投递-查询-复盘」全对话流程；录制 3 分钟演示视频；简历描述定稿。
+**验收**：Claude Desktop 内完成「录入-投递-查询-复盘」全对话流程（开发就绪，待用户配置 claude_desktop_config.json 并联调）；录制 3 分钟演示视频（待用户操作）；简历描述定稿。
 
 ## 2. 里程碑与演示脚本
 

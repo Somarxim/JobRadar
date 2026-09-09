@@ -5,6 +5,7 @@ import type { CalendarEvent } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { CALENDAR_TYPE_META } from '@/lib/labels'
 import { cn } from '@/lib/utils'
+import { ErrorState } from '@/components/StatusStates'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 /** 日历页：月视图，单元格内展示当日事件（deadline/笔试/面试/计划/待办） */
@@ -56,7 +57,7 @@ export default function CalendarPage() {
         ))}
       </div>
 
-      {error && <p className="text-destructive text-sm">加载失败：{error}</p>}
+      {error && <ErrorState message={error} onRetry={load} />}
 
       <div className="grid grid-cols-7 gap-px rounded-lg border bg-border overflow-hidden">
         {['一', '二', '三', '四', '五', '六', '日'].map((d) => (
