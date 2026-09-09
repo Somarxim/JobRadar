@@ -10,6 +10,8 @@ import com.jobradar.core.dto.ApplicationDtos.TransitionResponse;
 import com.jobradar.core.dto.DashboardDtos.DashboardSummary;
 import com.jobradar.core.dto.DashboardDtos.DeadlineItem;
 import com.jobradar.core.dto.DashboardDtos.NextActionItem;
+import com.jobradar.core.dto.DashboardDtos.WeeklyEventItem;
+import com.jobradar.core.dto.DashboardDtos.WeeklyReportView;
 import com.jobradar.core.dto.JobDtos.IngestRequest;
 import com.jobradar.core.dto.JobDtos.IngestResponse;
 import com.jobradar.core.dto.JobDtos.JobDetail;
@@ -26,12 +28,12 @@ import com.jobradar.core.service.DashboardService;
 import com.jobradar.core.service.JobService;
 import com.jobradar.core.service.MatchingService;
 import com.jobradar.core.service.RecommendService;
+import com.jobradar.core.service.WeeklyReportService;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -59,6 +61,7 @@ public class JobRadarMcpTools {
     private final DashboardService dashboardService;
     private final RecommendService recommendService;
     private final MatchingService matchingService;
+    private final WeeklyReportService weeklyReportService;
     private final ApplicationRepository applicationRepository;
 
     public JobRadarMcpTools(JobService jobService,
@@ -66,12 +69,14 @@ public class JobRadarMcpTools {
                             DashboardService dashboardService,
                             RecommendService recommendService,
                             MatchingService matchingService,
+                            WeeklyReportService weeklyReportService,
                             ApplicationRepository applicationRepository) {
         this.jobService = jobService;
         this.applicationService = applicationService;
         this.dashboardService = dashboardService;
         this.recommendService = recommendService;
         this.matchingService = matchingService;
+        this.weeklyReportService = weeklyReportService;
         this.applicationRepository = applicationRepository;
     }
 
@@ -218,22 +223,41 @@ public class JobRadarMcpTools {
     public record TodayView(String summary, List<NextActionItem> nextActions, List<DeadlineItem> urgentDeadlines) {
     }
 
-    @Tool(name = "weekly_report", description = "本周投递复盘：漏斗各阶段数量、本周新增投递/新岗位/未读推荐。week_offset 暂只支持 0（本周）。")
+    @Tool(name = "weekly_report", description = "投递复盘周报：投递数 vs 目标 vs 上周环比、阶段流转、事件流水、推荐采纳率，"
+            + "并附 AI 叙事复盘（LLM 不可用时自动降级纯数据版）。week_offset: 0=本周，-1=上周，以此类推。")
     public ToolOutcome weeklyReport(
-            @ToolParam(required = false, description = "0=本周；暂不支持回看历史周") Integer weekOffset) {
-        if (weekOffset != null && weekOffset != 0) {
-            return ToolOutcome.fail("暂只支持本周（week_offset=0），历史周复盘随 W4-2 周报 Agent 提供");
+            @ToolParam(required = false, description = "0=本周（默认），-1=上周，-2=上上周……") Integer weekOffset) {
+        int offset = weekOffset == null ? 0 : weekOffset;
+        try {
+            WeeklyReportView r = weeklyReportService.report(offset, true);
+            StringBuilder md = new StringBuilder("## 投递周报（" + r.weekStart() + " ~ " + r.weekEnd() + "）\n\n");
+            md.append("- 本周投递：").append(r.stats().applied()).append(" / 目标 ").append(r.stats().goal())
+                    .append("（上周 ").append(r.stats().prevWeekApplied()).append("）\n");
+            md.append("- 新收录岗位：").append(r.stats().newJobs()).append('\n');
+            md.append("- 推荐：生成 ").append(r.stats().recGenerated())
+                    .append("，采纳 ").append(r.stats().recAccepted())
+                    .append("，忽略 ").append(r.stats().recIgnored()).append('\n');
+            if (!r.stats().stageInflow().isEmpty()) {
+                md.append("- 阶段流转：");
+                r.stats().stageInflow().forEach((s, c) -> md.append(s).append("×").append(c).append("  "));
+                md.append('\n');
+            }
+            if (!r.events().isEmpty()) {
+                md.append("\n### 事件流水\n");
+                for (WeeklyEventItem e : r.events()) {
+                    md.append("- ").append(e.company()).append(" · ").append(e.title())
+                            .append(" → ").append(e.toStage()).append('\n');
+                }
+            }
+            if (r.narrativeMarkdown() != null) {
+                md.append("\n---\n\n").append(r.narrativeMarkdown()).append('\n');
+            } else {
+                md.append("\n（AI 叙事复盘暂不可用，以上为纯数据版）\n");
+            }
+            return ToolOutcome.ok("周报区间 " + r.weekStart() + " ~ " + r.weekEnd(), md.toString());
+        } catch (BadRequestException e) {
+            return ToolOutcome.fail(e.getMessage());
         }
-        DashboardSummary s = dashboardService.summary();
-        StringBuilder md = new StringBuilder("## 本周投递复盘（" + LocalDate.now() + "）\n\n");
-        md.append("### 漏斗\n");
-        s.funnel().forEach((stage, count) -> md.append("- ").append(stage).append("：").append(count).append('\n'));
-        md.append("\n### 本周\n");
-        md.append("- 新增投递：").append(s.thisWeek().applied())
-                .append(" / 目标 ").append(s.thisWeek().goal()).append('\n');
-        md.append("- 新收录岗位：").append(s.thisWeek().newJobs()).append('\n');
-        md.append("- 未读推荐：").append(s.thisWeek().recommendationsUnread()).append('\n');
-        return ToolOutcome.ok("本周投递 " + s.thisWeek().applied() + " 个", md.toString());
     }
 
     @Tool(name = "match_job", description = "AI 匹配分析：岗位 JD vs 我的简历，输出匹配分、硬性条件核对与差距分析（调用 LLM 约 3-10 秒）。不传 resume_id 用默认简历。")

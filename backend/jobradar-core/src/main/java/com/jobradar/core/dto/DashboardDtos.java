@@ -34,4 +34,23 @@ public final class DashboardDtos {
     public record CalendarEvent(LocalDate date, String type, String title,
                                 Long jobId, Long applicationId) {
     }
+
+    /**
+     * 周报（W4-2）：weekStart~weekEnd 的复盘视图。narrative_markdown 为 LLM 叙事复盘，
+     * LLM 未启用/调用失败时为 null 且 llm_generated=false（纯数据降级版）。
+     */
+    public record WeeklyReportView(LocalDate weekStart, LocalDate weekEnd,
+                                   WeeklyStats stats, List<WeeklyEventItem> events,
+                                   String narrativeMarkdown, boolean llmGenerated) {
+    }
+
+    /** stageInflow：本周各阶段流入计数（key 为小写阶段名） */
+    public record WeeklyStats(long applied, int goal, long prevWeekApplied,
+                              long newJobs, long recGenerated, long recAccepted, long recIgnored,
+                              Map<String, Long> stageInflow) {
+    }
+
+    public record WeeklyEventItem(java.time.Instant at, String company, String title,
+                                  String toStage, String note) {
+    }
 }

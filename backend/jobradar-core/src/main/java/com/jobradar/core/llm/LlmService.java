@@ -291,6 +291,46 @@ public class LlmService {
     /** 匹配评估的 prompt 版本：改 prompt 时递增，match_reports 落库可回溯对比效果（A/B 叙事点） */
     public static final String MATCH_PROMPT_VERSION = "match-v1";
 
+    /** 叙事类任务温度：复盘需要一点表达多样性，但内容仍是数据驱动，不宜放飞 */
+    private static final double NARRATIVE_TEMPERATURE = 0.6;
+
+    /**
+     * 周报叙事（W4-2）：统计数据 JSON → Markdown 复盘文本。与抽取式任务不同，
+     * 这里是自由文本生成（不做结构化约束），质量靠「只许用给定数据」的 prompt 约束。
+     * 失败/未启用返回 Optional.empty()，调用方降级为纯数据版周报（功能不中断）。
+     */
+    public Optional<String> narrateWeeklyReport(String statsJson) {
+        if (parseModel == null || overBudget("weekly_report", parseConfig.model())) {
+            return Optional.empty();
+        }
+        String systemPrompt = """
+                你是一位秋招求职复盘教练。根据用户一周的求职统计数据（JSON），写一份简短的 Markdown 周报。
+
+                要求：
+                - 结构固定四节：## 本周概览（关键数字点评）/ ## 亮点 / ## 风险与问题 / ## 下周建议
+                - 只使用给定 JSON 中的数据，禁止编造不存在的公司、岗位或数字
+                - 下周建议要具体到动作（如「跟进 XX 的笔试安排」），不要说正确的废话
+                - 语气务实直接，像有经验的师兄复盘；全文 300-500 字
+                - 直接输出 Markdown 正文，不要用代码块包裹
+                """;
+        long start = System.currentTimeMillis();
+        try {
+            ChatResponse resp = parseModel.call(new Prompt(
+                    List.of(new SystemMessage(systemPrompt), new UserMessage(statsJson)),
+                    OpenAiChatOptions.builder().model(parseConfig.model())
+                            .temperature(NARRATIVE_TEMPERATURE).build()));
+            String text = resp.getResult().getOutput().getText();
+            recordUsage("weekly_report", parseConfig.model(), resp.getMetadata().getUsage(),
+                    true, null, elapsed(start));
+            return Optional.ofNullable(text).filter(t -> !t.isBlank());
+        } catch (Exception e) {
+            log.warn("周报叙事生成失败: {}", e.getMessage());
+            recordUsage("weekly_report", parseConfig.model(), null, false,
+                    truncate(e.getMessage()), elapsed(start));
+            return Optional.empty();
+        }
+    }
+
     /** JD 原文截断上限：超长 JD 截断防 token 爆炸（设计文档 §4：截断 3000 字） */
     private static final int JD_MAX_CHARS = 3000;
 
