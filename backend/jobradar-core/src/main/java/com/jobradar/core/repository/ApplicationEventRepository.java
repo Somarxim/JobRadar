@@ -20,6 +20,9 @@ public interface ApplicationEventRepository extends JpaRepository<ApplicationEve
     List<ApplicationEvent> findByCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
             Instant from, Instant toExclusive);
 
+    /** 图表统计（W4-3）：近 N 天流向某阶段的事件（单用户量级，Java 侧按日聚合） */
+    List<ApplicationEvent> findByToStageAndCreatedAtGreaterThanEqual(ApplicationStage toStage, Instant since);
+
     /** Dashboard 本周新增投递数（to_stage=applied 且发生在本周内） */
     long countByToStageAndCreatedAtGreaterThanEqual(ApplicationStage toStage, Instant since);
 }

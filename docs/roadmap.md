@@ -2,6 +2,7 @@
 
 | 版本 | 日期 | 状态 |
 |---|---|---|
+| v0.16 | 2026-09-10 | W4-3 完成：Dashboard 图表区（漏斗/30天趋势/公司类型分布，recharts）+ 每周复盘卡片（W4-2 前端出口，AI 叙事按需生成） |
 | v0.15 | 2026-09-10 | W4-2 完成：周报 Agent（确定性数据组装 + LLM 叙事降级分层；REST /weekly-report + MCP weekly_report 支持历史周回看） |
 | v0.14 | 2026-09-10 | W4-1 完成：MCP Server 落地（10 tools + 2 resources + 3 prompts，stdio 协议冒烟通过，含 commons-logging 排雷与 LLM/简历装配下沉 core） |
 | v0.13 | 2026-09-10 | W3 收尾：待办自动生成（流转驱动）+ 爬虫 QA 成稿 + 数据源探测（智联匿名可用已落地解析器默认禁用；51job/应届生被阿里云 WAF 搁置）。W3 主链路闭环，W3-4/W3-5 转入细节修缮清单，优先 W4 |
@@ -71,7 +72,7 @@
 
 - [x] MCP Server：Spring AI MCP Starter，10 个 tools + resources + prep_interview prompt（stdio 协议级冒烟通过；Claude Desktop 联调待用户在客户端配置后重启）
 - [x] 周报 Agent（确定性数据 + LLM 叙事分层，REST/MCP 双出口，支持历史周回看）
-- [ ] Dashboard 图表完善（漏斗图/趋势图/类型分布）
+- [x] Dashboard 图表完善（漏斗图/趋势图/类型分布 + 每周复盘卡片）
 - [ ] 打磨：加载态/空态/错误处理；README 完善 + 演示录屏 + 架构图美化
 
 **验收**：Claude Desktop 内完成「录入-投递-查询-复盘」全对话流程；录制 3 分钟演示视频；简历描述定稿。

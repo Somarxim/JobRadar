@@ -53,4 +53,15 @@ public final class DashboardDtos {
     public record WeeklyEventItem(java.time.Instant at, String company, String title,
                                   String toStage, String note) {
     }
+
+    /** 图表统计（W4-3）：daily 近 N 天逐日数据（含 0 值日，前端直接画）；company_types 在架岗位类型分布 */
+    public record DashboardStats(List<DailyPoint> daily, List<TypeShare> companyTypes) {
+    }
+
+    public record DailyPoint(LocalDate date, long applied, long newJobs) {
+    }
+
+    /** type 为小写公司类型枚举（未分类归并到 other） */
+    public record TypeShare(String type, long count) {
+    }
 }

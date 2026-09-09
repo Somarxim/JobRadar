@@ -1,6 +1,7 @@
 package com.jobradar.app.web;
 
 import com.jobradar.core.dto.DashboardDtos.CalendarResponse;
+import com.jobradar.core.dto.DashboardDtos.DashboardStats;
 import com.jobradar.core.dto.DashboardDtos.DashboardSummary;
 import com.jobradar.core.dto.DashboardDtos.WeeklyReportView;
 import com.jobradar.core.service.DashboardService;
@@ -31,6 +32,12 @@ public class DashboardController {
     @GetMapping("/calendar")
     public CalendarResponse calendar(@RequestParam String month) {
         return dashboardService.calendar(month);
+    }
+
+    /** 图表统计（W4-3）：近 N 天逐日投递/收录 + 公司类型分布；days 限 7~90 */
+    @GetMapping("/stats")
+    public DashboardStats stats(@RequestParam(defaultValue = "30") int days) {
+        return dashboardService.stats(days);
     }
 
     /**
