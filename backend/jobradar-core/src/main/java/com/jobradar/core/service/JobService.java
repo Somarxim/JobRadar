@@ -177,16 +177,17 @@ public class JobService {
     }
 
     /**
-     * 统一导入（POST /jobs/ingest）W1 文本版。
-     * W2 将接入 LLM 对 raw_text/page_html 做结构化；当前要求 hints 提供 company+title，
-     * 否则 422 引导走 POST /jobs 人工录入（契约 §3 错误码）。
+     * 统一导入（POST /jobs/ingest）。
+     * 职责划分（W2-1 修正）：company/title 由 hints 提供（人工手填或插件 DOM 提取），
+     * AI 主职是补全 city/salary/deadline 等 enrichment 字段——JD 正文经常不含公司名，
+     * 强求 AI 识别只会诱发幻觉。仅当 company/title 缺省时才回退到 AI 提取（422 兜底保留）。
      */
     @Transactional
     public IngestResponse ingest(IngestRequest req) {
         List<String> warnings = new ArrayList<>();
         var hints = req.hints();
 
-        // 手填 hints 优先；company/title 缺省时由 LLM 从 JD 原文提取（W2）
+        // 手填 hints 优先；company/title 缺省时由 LLM 从 JD 原文提取（兜底路径）
         String company = hints != null ? trimToNull(hints.company()) : null;
         String title = hints != null ? trimToNull(hints.title()) : null;
         String city = hints != null ? trimToNull(hints.city()) : null;
@@ -194,19 +195,20 @@ public class JobService {
         LocalDate deadline = hints != null ? hints.deadline() : null;
         String posterJdText = null;
 
+        boolean hasText = req.rawText() != null && !req.rawText().isBlank();
+        boolean hasImage = req.imageBase64() != null && !req.imageBase64().isBlank();
+
         if (company == null || title == null) {
-            boolean hasText = req.rawText() != null && !req.rawText().isBlank();
-            boolean hasImage = req.imageBase64() != null && !req.imageBase64().isBlank();
             if (!hasText && !hasImage) {
                 throw new UnprocessableException(
                         "缺少 JD 原文（raw_text）或海报图片（image_base64），无法自动解析，请手动填写公司/岗位");
             }
-            // 文本优先于图片（更准更便宜）；图片走多模态海报解析
+            // 文本优先于图片（更准更便宜）；图片走两段式海报解析
             var parsed = hasText ? llmService.parseJd(req.rawText())
                     : llmService.parsePoster(req.imageBase64(), req.imageMediaType());
             if (parsed.isEmpty()) {
                 throw new UnprocessableException(
-                        "AI 解析不可用或失败，请手动填写公司/岗位，或使用 POST /jobs 人工录入");
+                        "AI 解析不可用或失败，请手动填写公司/岗位（其余已填内容会保留，补全后重新提交即可）");
             }
             var p = parsed.get();
             // 合并原则：用户手填 > AI 提取（人永远是最后裁决者）
@@ -215,14 +217,48 @@ public class JobService {
             if (city == null) city = trimToNull(p.city());
             if (salary == null) salary = trimToNull(p.salaryRange());
             if (deadline == null) deadline = parseDateLenient(p.deadline(), "deadline", warnings);
-            // 海报路径：模型整理的 jd_text 作为 JD 存档（海报本身没有文字层）
+            // 海报路径：转录稿作为 JD 存档（海报本身没有文字层）
             if (!hasText && p.jdText() != null) {
                 posterJdText = p.jdText();
             }
             warnings.add("公司/岗位由 AI 提取，请人工复核");
-        }
-        if (company == null || title == null) {
-            throw new UnprocessableException("AI 未能从 JD 中识别公司/岗位，请手动填写");
+            if (company == null || title == null) {
+                throw new UnprocessableException(
+                        "AI 未能从内容中识别公司/岗位，请手动填写公司/岗位后重新提交");
+            }
+        } else if (hasText) {
+            // 公司/岗位已具备：AI 只补全其余字段；失败降级为警告，不阻断入库（W2-1 修正）。
+            // enrichment 字段全部已手填时不调 AI——零收益纯烧 token
+            boolean enrichmentMissing = city == null || salary == null || deadline == null;
+            if (enrichmentMissing) {
+                var parsed = llmService.parseJd(req.rawText());
+                if (parsed.isPresent()) {
+                    var p = parsed.get();
+                    if (city == null) city = trimToNull(p.city());
+                    if (salary == null) salary = trimToNull(p.salaryRange());
+                    if (deadline == null) deadline = parseDateLenient(p.deadline(), "deadline", warnings);
+                } else {
+                    warnings.add("AI 补全不可用，城市/截止日期等字段请人工确认");
+                }
+            }
+        } else if (hasImage) {
+            // 海报 + 手填公司/岗位：转录稿仍要存档为 JD；结构化失败不丢转录稿（W2-2 两段式）
+            var transcription = llmService.transcribePoster(req.imageBase64(), req.imageMediaType());
+            if (transcription.isPresent()) {
+                posterJdText = transcription.get();
+                boolean enrichmentMissing = city == null || salary == null || deadline == null;
+                if (enrichmentMissing) {
+                    var parsed = llmService.structurePosterText(transcription.get());
+                    if (parsed.isPresent()) {
+                        var p = parsed.get();
+                        if (city == null) city = trimToNull(p.city());
+                        if (salary == null) salary = trimToNull(p.salaryRange());
+                        if (deadline == null) deadline = parseDateLenient(p.deadline(), "deadline", warnings);
+                    }
+                }
+            } else {
+                warnings.add("海报转录不可用，JD 内容请人工补充");
+            }
         }
 
         String hash = DedupeHash.of(company, title, city);
