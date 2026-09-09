@@ -229,7 +229,7 @@ class JobRadarIntegrationTest {
         assertThat(aiJob.company().name()).isEqualTo("美团");
         assertThat(aiJob.salaryRange()).isEqualTo("20-40K·15薪");
         assertThat(aiJob.deadline()).isNotNull();
-        assertThat(aiJob.sourceUrl()).isEqualTo("https://www.nowcoder.com/jobs/443976");
+        assertThat(aiJob.sourceUrl()).isEqualTo("https://www.nowcoder.com/jobs/detail/443976");
         assertThat(aiJob.sourcePlatform()).isEqualTo("niuke");
 
         // 面议 + 长期投递窗口 → salary/deadline 均不落库
@@ -368,7 +368,7 @@ class JobRadarIntegrationTest {
         assertThat(rerun.stream().map(com.jobradar.core.dto.RecommendDtos.RecommendationView::jobId).distinct().count())
                 .isEqualTo(rerun.size());
 
-        // 反馈闭环：accept → 自动建看板卡片；ignore → 记标签
+        // 反馈闭环：accept → 自动建看板卡片；ignore → 记标签；处理后从今日列表消失（只展示待处理一炉）
         var accRec = rerun.stream().filter(r -> r.jobId().equals(hitA.id())).findFirst().orElseThrow();
         var afterAccept = recommendService.feedback(accRec.id(),
                 new com.jobradar.core.dto.RecommendDtos.FeedbackRequest("accept", null));
@@ -381,15 +381,26 @@ class JobRadarIntegrationTest {
         assertThat(afterIgnore.status()).isEqualTo("ignored");
         assertThat(afterIgnore.feedbackTag()).isEqualTo("方向不符");
 
-        // 已反馈的记录是用户资产：重跑保留不被清；已 accept 的岗位进 7 天窗口不再推
+        var pendingOnly = recommendService.today();
+        assertThat(pendingOnly.stream().map(com.jobradar.core.dto.RecommendDtos.RecommendationView::jobId))
+                .doesNotContain(hitA.id(), hitB.id());
+        assertThat(pendingOnly).hasSize(rerun.size() - 2);
+
+        // 已反馈的记录是用户资产：重跑保留在库里（供推荐质量评估）但不进展示列表；
+        // 已 accept 的岗位进 7 天窗口不再推
         recommendService.runPipeline();
-        var afterRerun = recommendService.today();
-        var byJobAfter = afterRerun.stream().collect(java.util.stream.Collectors.toMap(
-                com.jobradar.core.dto.RecommendDtos.RecommendationView::jobId, r -> r, (x, y) -> x));
-        assertThat(byJobAfter.get(hitA.id()).status()).isEqualTo("accepted");
-        assertThat(byJobAfter.get(hitB.id()).status()).isEqualTo("ignored");
+        var allToday = recommendationRepository.findByRecDateOrderByRankAsc(java.time.LocalDate.now());
+        var byJobAfter = allToday.stream().collect(java.util.stream.Collectors.toMap(
+                r -> r.getJob().getId(), r -> r, (x, y) -> x));
+        assertThat(byJobAfter.get(hitA.id()).getStatus())
+                .isEqualTo(com.jobradar.core.domain.RecommendationStatus.ACCEPTED);
+        assertThat(byJobAfter.get(hitB.id()).getStatus())
+                .isEqualTo(com.jobradar.core.domain.RecommendationStatus.IGNORED);
+        assertThat(recommendService.today().stream()
+                .map(com.jobradar.core.dto.RecommendDtos.RecommendationView::jobId))
+                .doesNotContain(hitA.id(), hitB.id());
         // accept 幂等：重跑 + 再 accept 不产生重复看板卡片
-        recommendService.feedback(byJobAfter.get(hitA.id()).id(),
+        recommendService.feedback(byJobAfter.get(hitA.id()).getId(),
                 new com.jobradar.core.dto.RecommendDtos.FeedbackRequest("accept", null));
         assertThat(applicationRepository.findByJobId(hitA.id())).isPresent();
     }

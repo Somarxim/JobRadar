@@ -13,6 +13,9 @@ public interface RecommendationRepository extends JpaRepository<Recommendation, 
     /** 今日推荐列表（按位次排序） */
     List<Recommendation> findByRecDateOrderByRankAsc(LocalDate recDate);
 
+    /** 今日待处理推荐（Dashboard 只展示这一炉；已处理的留库不展示） */
+    List<Recommendation> findByRecDateAndStatusOrderByRankAsc(LocalDate recDate, RecommendationStatus status);
+
     /** 防重复推荐窗口：近 N 天推荐过的岗位 id 批量取回（避免逐岗 exists 的 N+1） */
     @Query("select r.job.id from Recommendation r where r.recDate >= :since")
     List<Long> findJobIdsByRecDateGreaterThanEqual(LocalDate since);
