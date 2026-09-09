@@ -2,6 +2,7 @@ package com.jobradar.app;
 
 import com.jobradar.core.domain.ApplicationStage;
 import com.jobradar.core.dto.ApplicationDtos.ApplicationCreateRequest;
+import com.jobradar.core.dto.ApplicationDtos.ApplicationPatchRequest;
 import com.jobradar.core.dto.ApplicationDtos.StageTransitionRequest;
 import com.jobradar.core.dto.JobDtos.IngestRequest;
 import com.jobradar.core.dto.JobDtos.JobCreateRequest;
@@ -260,14 +261,20 @@ class JobRadarIntegrationTest {
                 "测试公司乙", null, "后端开发", null, "北京", null, null, null, null));
         var app = applicationService.create(new ApplicationCreateRequest(job.id(), null, null, null, null));
         assertThat(app.stage()).isEqualTo(ApplicationStage.COLLECTED);
+        // 自动待办：新建即按阶段生成，无时间（Dashboard 显示"尽快"）
+        assertThat(app.nextAction()).isEqualTo("评估是否投递");
+        assertThat(app.nextActionAt()).isNull();
 
         var toPlanned = applicationService.transition(app.id(),
                 new StageTransitionRequest(ApplicationStage.PLANNED, "本周投", null, null));
         assertThat(toPlanned.application().stage()).isEqualTo(ApplicationStage.PLANNED);
+        // 自动待办随阶段替换
+        assertThat(toPlanned.application().nextAction()).isEqualTo("完成投递");
 
         var toApplied = applicationService.transition(app.id(),
                 new StageTransitionRequest(ApplicationStage.APPLIED, null, "official", null));
         assertThat(toApplied.application().stage()).isEqualTo(ApplicationStage.APPLIED);
+        assertThat(toApplied.application().nextAction()).isEqualTo("跟进进度，准备笔试");
 
         // 幂等：重复流转到 applied 不追加事件
         var again = applicationService.transition(app.id(),
@@ -279,6 +286,53 @@ class JobRadarIntegrationTest {
         assertThat(toApplied.events()).hasSize(3);
         assertThat(toApplied.events().get(2).fromStage()).isNull();
         assertThat(toApplied.events().get(0).toStage()).isEqualTo(ApplicationStage.APPLIED);
+    }
+
+    /**
+     * 待办自动生成生命周期：流转到笔试自动换文案、终态清空自动待办、
+     * 用户自定义文案流转时不被覆盖、待办查询排除终态且无时间的排最前。
+     */
+    @Test
+    void autoNextActionLifecycle() {
+        var job = jobService.create(new JobCreateRequest(
+                "测试公司待办甲", null, "算法工程师", null, "北京", null, null, null, null));
+        var auto = applicationService.create(new ApplicationCreateRequest(job.id(), null, null, null, null));
+
+        var toTest = applicationService.transition(auto.id(),
+                new StageTransitionRequest(ApplicationStage.WRITTEN_TEST, null, null, null));
+        assertThat(toTest.application().nextAction()).isEqualTo("参加笔试");
+
+        var rejected = applicationService.transition(auto.id(),
+                new StageTransitionRequest(ApplicationStage.REJECTED, null, null, null));
+        assertThat(rejected.application().nextAction()).isNull();
+        assertThat(rejected.application().nextActionAt()).isNull();
+
+        // 自定义待办（用户 PATCH 过文案）：流转不覆盖
+        var job2 = jobService.create(new JobCreateRequest(
+                "测试公司待办乙", null, "测开", null, "上海", null, null, null, null));
+        var custom = applicationService.create(new ApplicationCreateRequest(job2.id(), null, null, null, null));
+        applicationService.patch(custom.id(), new ApplicationPatchRequest(
+                null, null, "问师兄要内推码", null, null, null));
+        var applied = applicationService.transition(custom.id(),
+                new StageTransitionRequest(ApplicationStage.APPLIED, null, "official", null));
+        assertThat(applied.application().nextAction()).isEqualTo("问师兄要内推码");
+
+        // 待办查询：带时间的排在无时间自动待办之后；终态条目不出现
+        var job3 = jobService.create(new JobCreateRequest(
+                "测试公司待办丙", null, "Java 开发", null, "杭州", null, null, null, null));
+        var timed = applicationService.create(new ApplicationCreateRequest(job3.id(), null, null, null, null));
+        applicationService.patch(timed.id(), new ApplicationPatchRequest(
+                null, null, null, java.time.Instant.now().plusSeconds(86400), null, null));
+        applicationService.transition(custom.id(),
+                new StageTransitionRequest(ApplicationStage.REJECTED, null, null, null));
+
+        var todos = applicationRepository.findNextActions();
+        var ids = todos.stream().map(com.jobradar.core.domain.Application::getId).toList();
+        assertThat(ids).contains(timed.id());
+        assertThat(ids).doesNotContain(custom.id());
+        // timed 之前的条目必须都是无时间的（nulls-first 排序成立，且不依赖其他测试的数据）
+        int timedIdx = ids.indexOf(timed.id());
+        assertThat(todos.stream().limit(timedIdx).allMatch(a -> a.getNextActionAt() == null)).isTrue();
     }
 
     /** 归档过滤：岗位归档后从看板消失（W1 末用户反馈修复的回归防护） */
