@@ -251,10 +251,15 @@ public class RecommendService {
         return new CoarseScore(Math.min(score, 100), hits);
     }
 
-    /** 今日推荐列表 */
+    /**
+     * 今日推荐列表——只返回 PENDING。已 accept/ignore 的是用户已处理的反馈数据，
+     * 留在库里供质量评估但不再展示（用户实测反馈：已处理项混在列表里会干扰
+     * 「一炉 5 条、批批替换」的心智模型）。
+     */
     @Transactional(readOnly = true)
     public List<RecommendationView> today() {
-        return recommendationRepository.findByRecDateOrderByRankAsc(LocalDate.now())
+        return recommendationRepository
+                .findByRecDateAndStatusOrderByRankAsc(LocalDate.now(), RecommendationStatus.PENDING)
                 .stream().map(RecommendService::toView).toList();
     }
 
