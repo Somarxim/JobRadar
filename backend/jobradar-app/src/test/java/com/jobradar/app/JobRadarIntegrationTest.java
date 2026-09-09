@@ -19,6 +19,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 集成测试基线（roadmap W2）：Testcontainers 起真实 PostgreSQL（pgvector 镜像——
@@ -66,6 +67,8 @@ class JobRadarIntegrationTest {
     private com.jobradar.core.repository.RecommendationRepository recommendationRepository;
     @Autowired
     private com.jobradar.core.repository.ApplicationRepository applicationRepository;
+    @Autowired
+    private com.jobradar.core.service.WeeklyReportService weeklyReportService;
     /** 抓取层打桩：测试不依赖外网（真实站点的连通性/反爬属于运行环境，不属于逻辑正确性） */
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.jobradar.core.crawl.PageFetcher pageFetcher;
@@ -286,6 +289,33 @@ class JobRadarIntegrationTest {
         assertThat(toApplied.events()).hasSize(3);
         assertThat(toApplied.events().get(2).fromStage()).isNull();
         assertThat(toApplied.events().get(0).toStage()).isEqualTo(ApplicationStage.APPLIED);
+    }
+
+    /**
+     * 周报（W4-2）：本周事件出现在流水与统计中；narrative=false 纯数据版不依赖 LLM；
+     * 未来周偏移被拒。共享库下有其他测试的事件，断言用「包含」而非「等于」。
+     */
+    @Test
+    void weeklyReportReflectsThisWeekEvents() {
+        var job = jobService.create(new JobCreateRequest(
+                "测试公司周报甲", null, "嵌入式开发", null, "西安", null, null, null, null));
+        var app = applicationService.create(new ApplicationCreateRequest(job.id(), null, null, null, null));
+        applicationService.transition(app.id(),
+                new StageTransitionRequest(ApplicationStage.APPLIED, null, "official", null));
+
+        var report = weeklyReportService.report(0, false);
+        assertThat(report.llmGenerated()).isFalse();
+        assertThat(report.weekStart().getDayOfWeek()).isEqualTo(java.time.DayOfWeek.MONDAY);
+        // 本周至少有一条 applied 流入（本条），且事件流水里能找回这家公司
+        assertThat(report.stats().applied()).isGreaterThanOrEqualTo(1);
+        assertThat(report.events())
+                .anySatisfy(e -> {
+                    assertThat(e.company()).isEqualTo("测试公司周报甲");
+                    assertThat(e.toStage()).isEqualTo("applied");
+                });
+
+        assertThatThrownBy(() -> weeklyReportService.report(1, false))
+                .isInstanceOf(com.jobradar.core.exception.BadRequestException.class);
     }
 
     /**
