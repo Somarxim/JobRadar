@@ -53,7 +53,7 @@ class NowcoderSearchParserTest {
         assertThat(first.title()).isEqualTo("交付工程师");
         assertThat(first.city()).isEqualTo("武汉");
         assertThat(first.salaryRange()).isEqualTo("10-20K·14薪");
-        assertThat(first.url()).isEqualTo("https://www.nowcoder.com/jobs/459414");
+        assertThat(first.url()).isEqualTo("https://www.nowcoder.com/jobs/detail/459414");
         assertThat(first.publishDate()).isNotBlank();
         // deliverEnd 1789084800000 ≈ 2026-09-11，30 天窗口 → 落 deadline
         assertThat(first.deadline()).isEqualTo("2026-09-11");

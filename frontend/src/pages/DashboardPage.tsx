@@ -52,12 +52,10 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* 今日推荐：W3-3 每日管线产出，反馈闭环（感兴趣→自动进看板） */}
+      {/* 今日推荐：W3-3 每日管线产出，只展示待处理的一炉（反馈后即移出） */}
       <RecommendationSection
         items={recs ?? []}
-        onItemChanged={(updated) =>
-          setRecs((prev) => prev?.map((r) => (r.id === updated.id ? updated : r)) ?? null)
-        }
+        onItemHandled={(id) => setRecs((prev) => prev?.filter((r) => r.id !== id) ?? null)}
         onRefresh={loadRecs}
       />
 

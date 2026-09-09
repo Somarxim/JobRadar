@@ -27,7 +27,9 @@ import java.util.regex.Pattern;
  *   <li>薪资：salaryMin/salaryMax 单位 K、salaryMonth 月数；0-9999999 是「面议」哨兵值；</li>
  *   <li>deliverBegin/deliverEnd 为投递窗口（epoch 毫秒）；窗口超 400 天视为「长期」，不落 deadline
  *       （否则 DDL 倒计时列表被一批 2029 年的假截止日淹没）；</li>
- *   <li>详情页：https://www.nowcoder.com/jobs/{id}（实测 200）。</li>
+ *   <li>详情页：https://www.nowcoder.com/jobs/detail/{id}。
+ *       教训：/jobs/{id} 也返回 HTTP 200 但渲染的是牛客首页（SPA 前端路由不命中的软 404），
+ *       W3-2 当时只验证了状态码没验证页面内容——站外链接必须验证「内容」而非「可达」。</li>
  * </ul>
  *
  * <p>标题清洗：牛客岗位名常带「【27届校招】」批次前缀与「(J10357)」内部编号后缀，
@@ -40,8 +42,8 @@ public class NowcoderSearchParser implements SiteParser {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
-    /** 详情页地址模板（实测可达） */
-    static final String DETAIL_URL = "https://www.nowcoder.com/jobs/";
+    /** 详情页地址模板（/detail/ 段落不可省：裸 /jobs/{id} 是软 404，落到首页） */
+    static final String DETAIL_URL = "https://www.nowcoder.com/jobs/detail/";
     /** 投递窗口超过该天数视为「长期有效」，不落 deadline */
     static final long LONG_TERM_DAYS = 400;
     /** 薪资上限哨兵：max 接近 9999999K 即面议 */
