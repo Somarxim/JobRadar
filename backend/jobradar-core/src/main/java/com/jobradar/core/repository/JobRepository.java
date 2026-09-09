@@ -31,4 +31,7 @@ public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificatio
 
     /** 日历：截止日落在指定区间内的岗位 */
     List<Job> findByActiveTrueAndDeadlineBetween(LocalDate from, LocalDate to);
+
+    /** 每日推荐管线候选池：近 N 天新入库的岗位（爬虫/手动录入都算） */
+    List<Job> findByActiveTrueAndCreatedAtGreaterThanEqual(Instant since);
 }

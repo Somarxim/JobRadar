@@ -82,3 +82,7 @@ jobradar:
   crawler:
     enabled: ${CRAWLER_ENABLED:true}
     cron: ${CRAWLER_CRON:0 30 7 * * *}
+  # W3 每日推荐调度：排在爬虫批次之后（默认 07:45），LLM 不可用时自动降级规则粗排
+  recommend:
+    enabled: ${RECOMMEND_ENABLED:true}
+    cron: ${RECOMMEND_CRON:0 45 7 * * *}
