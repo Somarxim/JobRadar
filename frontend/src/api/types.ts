@@ -139,6 +139,39 @@ export interface CalendarEvent {
   application_id?: number
 }
 
+// ---------- 每日推荐（W3-3） ----------
+
+export type RecommendationStatus = 'pending' | 'accepted' | 'ignored'
+
+export interface Recommendation {
+  id: number
+  job_id: number
+  company: string
+  title: string
+  city: string | null
+  salary_range: string | null
+  source_platform: string
+  source_url: string | null
+  deadline: string | null
+  rank: number
+  /** 推荐理由：精评时是 LLM 一句话结论；降级时是粗筛命中说明 */
+  reason: string
+  /** 精评总分（粗筛降级时为规则分） */
+  score: number
+  /** true = 经过 LLM 精评；false = 规则粗筛降级产出 */
+  llm_scored: boolean
+  status: RecommendationStatus
+  feedback_tag: string | null
+}
+
+export interface RecommendRunReport {
+  candidates: number
+  coarse_passed: number
+  llm_scored: number
+  recommended: number
+  notes: string[]
+}
+
 // ---------- 简历（ResumeProfile schema 见 docs/agent-design.md §3.1） ----------
 
 export interface ResumeEducation {
