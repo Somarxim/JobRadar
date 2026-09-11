@@ -71,6 +71,8 @@ class JobRadarIntegrationTest {
     private com.jobradar.core.service.WeeklyReportService weeklyReportService;
     @Autowired
     private com.jobradar.core.service.DashboardService dashboardService;
+    @Autowired
+    private com.jobradar.core.service.SearchTextBackfillService searchTextBackfillService;
     /** 抓取层打桩：测试不依赖外网（真实站点的连通性/反爬属于运行环境，不属于逻辑正确性） */
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.jobradar.core.crawl.PageFetcher pageFetcher;
@@ -540,6 +542,37 @@ class JobRadarIntegrationTest {
         assertThat(jobRepository.findById(withApp.id()).orElseThrow().isActive()).isFalse();
         assertThat(jobRepository.findById(withRec.id()).orElseThrow().isActive()).isFalse();
         assertThat(applicationRepository.findByJobId(withApp.id())).isPresent();
+    }
+
+    /**
+     * 全文检索（W3 上线）：jieba 词元命中文本/公司名、零命中语义、存量回填。
+     * 断言用包含式（anySatisfy/noneMatch）：测试库多用例共享，不做全库等值断言。
+     */
+    @Test
+    void fullTextSearchMatchesTokensAndBackfills() {
+        var created = jobService.create(new JobCreateRequest(
+                "智谱清言", null, "大模型应用工程师（2026校招）",
+                "负责 Agent 应用研发与落地", null, null, null, null, null));
+
+        // 标题词元命中（中文词元级匹配，无需整串子串）
+        assertThat(jobService.search("大模型", null, null, null, null, null, "created_desc", 1, 10)
+                .items()).anySatisfy(j -> assertThat(j.id()).isEqualTo(created.id()));
+        // 公司名词元命中（智谱清言 INDEX 模式产二元词元「智谱」）
+        assertThat(jobService.search("智谱", null, null, null, null, null, "created_desc", 1, 10)
+                .items()).anySatisfy(j -> assertThat(j.id()).isEqualTo(created.id()));
+        // 纯标点查询（无有效词元）→ 零命中而不是全量返回
+        assertThat(jobService.search("！！！", null, null, null, null, null, "created_desc", 1, 10)
+                .items()).isEmpty();
+
+        // 存量回填：清空 search_text → 词元搜不到 → backfill → 恢复命中
+        var job = jobRepository.findById(created.id()).orElseThrow();
+        job.setSearchText("");
+        jobRepository.save(job);
+        assertThat(jobService.search("大模型", null, null, null, null, null, "created_desc", 1, 10)
+                .items()).noneMatch(j -> j.id().equals(created.id()));
+        assertThat(searchTextBackfillService.backfillBatch()).isGreaterThanOrEqualTo(1);
+        assertThat(jobService.search("大模型", null, null, null, null, null, "created_desc", 1, 10)
+                .items()).anySatisfy(j -> assertThat(j.id()).isEqualTo(created.id()));
     }
 
     private int boardTotal() {
