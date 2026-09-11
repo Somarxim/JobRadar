@@ -197,6 +197,30 @@ export interface RecommendRunReport {
   notes: string[]
 }
 
+// ---------- 爬虫（源状态 + 手动触发，端点见 CrawlController） ----------
+
+export interface CrawlSourceView {
+  id: number
+  name: string
+  url: string
+  parser: string
+  category: string
+  enabled: boolean
+  last_crawled_at: string | null
+}
+
+export interface CrawlSourceResult {
+  source_name: string
+  fetched: number
+  created: number
+  duplicated: number
+}
+
+export interface CrawlRunSummary {
+  started_at: string
+  results: CrawlSourceResult[]
+}
+
 // ---------- 简历（ResumeProfile schema 见 docs/agent-design.md §3.1） ----------
 
 export interface ResumeEducation {
