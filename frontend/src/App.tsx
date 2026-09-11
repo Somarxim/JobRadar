@@ -1,23 +1,30 @@
+import { Suspense, lazy, type ReactNode } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import AppLayout from '@/components/AppLayout'
 import { Toaster } from '@/components/ui/sonner'
-import DashboardPage from '@/pages/DashboardPage'
-import JobsPage from '@/pages/JobsPage'
-import JobDetailPage from '@/pages/JobDetailPage'
-import BoardPage from '@/pages/BoardPage'
-import CalendarPage from '@/pages/CalendarPage'
-import ResumesPage from '@/pages/ResumesPage'
+import { LoadingState } from '@/components/StatusStates'
+
+// 路由级代码分割：Dashboard 是 recharts 图表的唯一消费者，懒加载后
+// 看板/岗位库等首屏不再下载 400KB 的 charts chunk（vite advancedChunks 分组）
+const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
+const JobsPage = lazy(() => import('@/pages/JobsPage'))
+const JobDetailPage = lazy(() => import('@/pages/JobDetailPage'))
+const BoardPage = lazy(() => import('@/pages/BoardPage'))
+const CalendarPage = lazy(() => import('@/pages/CalendarPage'))
+const ResumesPage = lazy(() => import('@/pages/ResumesPage'))
+
+const lazyPage = (el: ReactNode) => <Suspense fallback={<LoadingState />}>{el}</Suspense>
 
 const router = createBrowserRouter([
   {
     element: <AppLayout />,
     children: [
-      { path: '/', element: <DashboardPage /> },
-      { path: '/jobs', element: <JobsPage /> },
-      { path: '/jobs/:id', element: <JobDetailPage /> },
-      { path: '/board', element: <BoardPage /> },
-      { path: '/calendar', element: <CalendarPage /> },
-      { path: '/resumes', element: <ResumesPage /> },
+      { path: '/', element: lazyPage(<DashboardPage />) },
+      { path: '/jobs', element: lazyPage(<JobsPage />) },
+      { path: '/jobs/:id', element: lazyPage(<JobDetailPage />) },
+      { path: '/board', element: lazyPage(<BoardPage />) },
+      { path: '/calendar', element: lazyPage(<CalendarPage />) },
+      { path: '/resumes', element: lazyPage(<ResumesPage />) },
     ],
   },
 ])
