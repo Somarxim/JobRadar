@@ -9,6 +9,8 @@ import type {
   CalendarEvent,
   CompanyTier,
   CompanyType,
+  CrawlRunSummary,
+  CrawlSourceView,
   DashboardStats,
   DashboardSummary,
   EventItem,
@@ -118,6 +120,10 @@ export const api = {
     }),
   runRecommendations: () =>
     request<RecommendRunReport>('/api/recommendations/run', { method: 'POST' }),
+
+  // Crawl（手动爬取：本地部署定时窗不可靠，每日上线点一次是 baseline）
+  listCrawlSources: () => request<CrawlSourceView[]>('/api/crawl/sources'),
+  runCrawl: () => request<CrawlRunSummary>('/api/crawl/run', { method: 'POST' }),
 
   // Match（同步接口，一次 LLM 调用 3-10s，调用方需 loading 态）
   matchJob: (jobId: number, resumeId?: number) =>
