@@ -79,6 +79,8 @@ class JobRadarIntegrationTest {
     private com.jobradar.core.service.CompanyTypeBackfillService companyTypeBackfillService;
     @Autowired
     private com.jobradar.core.repository.CompanyRepository companyRepository;
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
     /** 抓取层打桩：测试不依赖外网（真实站点的连通性/反爬属于运行环境，不属于逻辑正确性） */
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.jobradar.core.crawl.PageFetcher pageFetcher;
@@ -634,6 +636,21 @@ class JobRadarIntegrationTest {
         companyTypeBackfillService.reclassifyOthers();
         assertThat(companyRepository.findByName("中国移动").orElseThrow().getCompanyType())
                 .isEqualTo(com.jobradar.core.domain.CompanyType.SOE_CENTRAL);
+    }
+
+    /** 兜底候选：36h 新鲜池空时（爬虫断档），近 30 天活跃未推荐岗位仍应进候选 */
+    @Test
+    void recommendFallsBackToRecentActiveJobs() {
+        var old = jobService.create(new JobCreateRequest("兜底测试公司", null, "Go 后端工程师",
+                "Go 微服务开发", "北京", null, null, null, null));
+        // created_at 是 @CreationTimestamp 只在插入时写，用原生 SQL 拨回 5 天前使其掉出 36h 窗口
+        jdbcTemplate.update("update jobs set created_at = now() - interval '5 days' where id = ?", old.id());
+
+        var fallback = recommendService.fallbackCandidates(java.util.Set.of());
+        assertThat(fallback.stream().map(com.jobradar.core.domain.Job::getId)).contains(old.id());
+        // 近 7 天推荐过的不进兜底（防重窗口对兜底同样生效）
+        assertThat(recommendService.fallbackCandidates(java.util.Set.of(old.id()))
+                .stream().map(com.jobradar.core.domain.Job::getId)).doesNotContain(old.id());
     }
 
     private int boardTotal() {

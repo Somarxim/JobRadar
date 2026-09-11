@@ -54,6 +54,8 @@ public class RecommendService {
 
     /** 候选窗口：近 36h 新入库（覆盖每日 07:30 爬虫批次 + 跨时区边界） */
     static final Duration CANDIDATE_WINDOW = Duration.ofHours(36);
+    /** 兜底候选窗口：36h 无新岗（爬虫断档/周末）时放宽到近 30 天活跃岗位，保推荐不断更 */
+    static final Duration FALLBACK_WINDOW = Duration.ofDays(30);
     /** 防重复推荐窗口：近 7 天推过的岗位不再推 */
     static final int NO_REPEAT_DAYS = 7;
     /** 粗筛出线进精评的上限（成本闸：精评 ≤ 20 条/天，见 agent-design §5） */
@@ -88,6 +90,24 @@ public class RecommendService {
         this.matchReportRepository = matchReportRepository;
         this.applicationRepository = applicationRepository;
         this.matchingService = matchingService;
+    }
+
+    /**
+     * 兜底候选池：近 30 天活跃岗位 − 已进看板的 − 近 7 天推荐过的。
+     * public 仅为可测试性（集成测试在 app 模块，且共享库里总有别的新建岗位占着
+     * 36h 新鲜池，端到端触发不到兜底分支）——业务调用方应只有 {@link #runPipeline}。
+     */
+    public List<Job> fallbackCandidates(java.util.Set<Long> recentlyRecommended) {
+        Instant since = Instant.now().minus(FALLBACK_WINDOW);
+        List<Job> pool = jobRepository.findByActiveTrueAndCreatedAtGreaterThanEqual(since);
+        List<Long> poolIds = pool.stream().map(Job::getId).toList();
+        java.util.Set<Long> applied = poolIds.isEmpty() ? java.util.Set.of()
+                : new java.util.HashSet<>(applicationRepository.findByJobIdIn(poolIds)
+                        .stream().map(a -> a.getJob().getId()).toList());
+        return pool.stream()
+                .filter(j -> !applied.contains(j.getId()))
+                .filter(j -> !recentlyRecommended.contains(j.getId()))
+                .toList();
     }
 
     /** 粗筛结果：分数 + 命中理由（降级时 reason 直接用它） */
@@ -127,6 +147,16 @@ public class RecommendService {
                 .filter(j -> !hasApplication.contains(j.getId()))
                 .filter(j -> !recentlyRecommended.contains(j.getId()))
                 .toList();
+
+        // 兜底候选：36h 无新岗（爬虫断档/后端没赶上 07:30 定时窗）时，放宽到近 30 天
+        // 活跃岗位。只放宽新鲜度——看板排除与 7 天防重窗口照常生效，防止老岗位反复骚扰。
+        if (candidates.isEmpty()) {
+            candidates = fallbackCandidates(recentlyRecommended);
+            if (!candidates.isEmpty()) {
+                notes.add("近 36h 无新入库岗位，兜底取近 30 天活跃且未推荐的 "
+                        + candidates.size() + " 个进粗筛");
+            }
+        }
 
         ParsedResume resume = defaultResume().orElse(null);
         if (resume == null) {
