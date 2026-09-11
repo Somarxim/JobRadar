@@ -7,6 +7,7 @@ import type {
   ApplicationCard,
   BoardResponse,
   CalendarEvent,
+  CompanyTier,
   DashboardStats,
   DashboardSummary,
   EventItem,
@@ -86,6 +87,16 @@ export const api = {
     request<{ application: unknown; events: EventItem[] }>(
       `/api/applications/${id}/stage`, { method: 'POST', body: JSON.stringify(body) }),
   events: (id: number) => request<EventItem[]>(`/api/applications/${id}/events`),
+  /** 部分更新投递（待办/优先级/备注等，null=保持原值） */
+  updateApplication: (id: number, body: { next_action?: string; next_action_at?: string | null }) =>
+    request<ApplicationCard>(`/api/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  // Companies
+  /** 更新公司分级（tier 挂公司实体，同公司岗位共享） */
+  updateCompanyTier: (companyId: number, tier: CompanyTier) =>
+    request<{ tier: CompanyTier }>(`/api/companies/${companyId}`, {
+      method: 'PATCH', body: JSON.stringify({ tier }),
+    }),
 
   // Dashboard
   summary: () => request<DashboardSummary>('/api/dashboard/summary'),

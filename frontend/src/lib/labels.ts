@@ -55,6 +55,21 @@ export const COMPANY_TYPE_LABELS: Record<string, string> = Object.fromEntries(
   Object.entries(COMPANY_TYPE_META).map(([k, v]) => [k, v.label]),
 )
 
+/**
+ * 公司分级（投递规划三层）：dream=冲刺 / target=主攻 / backup=保底 / none=未分级。
+ * tier 挂在公司实体上（同公司多岗位共享分级），后端 CompanyTier 枚举的小写形式。
+ */
+export const TIER_META: Record<string, { label: string; className: string }> = {
+  dream: { label: '冲刺', className: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200' },
+  target: { label: '主攻', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  backup: { label: '保底', className: 'bg-zinc-100 text-zinc-600 border-zinc-200' },
+}
+
+/** 分级下拉框选项（含"未分级"清除项的完整列表在组件内拼，此处只放三级） */
+export const TIER_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(TIER_META).map(([k, v]) => [k, v.label]),
+)
+
 /** 投递渠道中文名（后端存英文枚举值，UI 显示中文） */
 export const CHANNEL_LABELS: Record<string, string> = {
   official: '官网投递',
