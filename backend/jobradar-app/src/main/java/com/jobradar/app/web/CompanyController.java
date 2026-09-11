@@ -1,18 +1,24 @@
 package com.jobradar.app.web;
 
+import com.jobradar.core.domain.Company;
 import com.jobradar.core.domain.CompanyTier;
+import com.jobradar.core.domain.CompanyType;
+import com.jobradar.core.exception.BadRequestException;
 import com.jobradar.core.service.CompanyService;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.Map;
 
-/** 公司 API（/api/companies）：目前只有分级更新（tier 挂在公司实体，岗位编辑管不到它） */
+/**
+ * 公司 API（/api/companies）：tier（投递分级）与 companyType（企业性质）都挂在公司实体，
+ * 岗位编辑管不到它们，所以编辑入口独立在此。
+ * PATCH 语义与全局一致：字段不传/为 null = 保持原值。
+ */
 @RestController
 @RequestMapping("/api/companies")
 public class CompanyController {
@@ -23,12 +29,19 @@ public class CompanyController {
         this.companyService = companyService;
     }
 
-    public record TierPatchRequest(@NotNull(message = "tier 不能为空") CompanyTier tier) {
+    /** 两个字段都可空（null=保持原值），但至少要给一个——空 PATCH 视为客户端笔误 */
+    public record CompanyPatchRequest(CompanyTier tier, CompanyType companyType) {
     }
 
     @PatchMapping("/{id}")
-    public Map<String, CompanyTier> updateTier(@PathVariable long id,
-                                               @Valid @RequestBody TierPatchRequest req) {
-        return Map.of("tier", companyService.updateTier(id, req.tier()));
+    public Map<String, Object> update(@PathVariable long id, @RequestBody CompanyPatchRequest req) {
+        if (req.tier() == null && req.companyType() == null) {
+            throw new BadRequestException("tier 与 companyType 至少给一个");
+        }
+        Company company = companyService.update(id, req.tier(), req.companyType());
+        Map<String, Object> body = new HashMap<>();
+        body.put("tier", company.getTier());
+        body.put("company_type", company.getCompanyType());
+        return body;
     }
 }

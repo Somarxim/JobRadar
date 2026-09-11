@@ -16,7 +16,7 @@ import MatchReportCard from '@/components/MatchReportCard'
 import { ErrorState, LoadingState } from '@/components/StatusStates'
 import TransitionConfirmDialog, { type RollbackRequest } from '@/components/TransitionConfirmDialog'
 import {
-  CHANNEL_LABELS, COMPANY_TYPE_META, STAGE_META, STAGES, TIER_META,
+  CHANNEL_LABELS, COMPANY_TYPE_LABELS, COMPANY_TYPE_META, STAGE_META, STAGES, TIER_META,
   deadlineClass, deadlineCountdown, fmtDate, fmtDateTime, isRollback,
 } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -127,13 +127,37 @@ export default function JobDetailPage() {
             {job.salary_range ? ` · ${job.salary_range}` : ''}
           </p>
           <div className="flex gap-2 items-center mt-2 flex-wrap">
-            <Badge className={typeMeta?.className} variant="outline">{typeMeta?.label}</Badge>
+            {/* 企业性质：规则分类器自动识别，误判时在此手动纠正（挂公司实体，同公司岗位共享） */}
+            <Select
+              value={job.company.company_type}
+              onValueChange={async (v) => {
+                try {
+                  await api.updateCompany(job.company.id, { companyType: v as JobDetail['company']['company_type'] })
+                  toast.success(`「${job.company.name}」类型已更新`)
+                  load()
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : String(e))
+                }
+              }}
+            >
+              <SelectTrigger
+                className={cn('h-6 w-auto gap-1 border-dashed px-2 text-xs', typeMeta?.className)}
+                title="企业性质：自动识别自公司名，误判可在此纠正"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(COMPANY_TYPE_LABELS).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {/* 公司分级（投递规划）：tier 挂公司实体，改了同公司所有岗位共享 */}
             <Select
               value={job.company.tier}
               onValueChange={async (v) => {
                 try {
-                  await api.updateCompanyTier(job.company.id, v as JobDetail['company']['tier'])
+                  await api.updateCompany(job.company.id, { tier: v as JobDetail['company']['tier'] })
                   toast.success(`「${job.company.name}」分级已更新`)
                   load()
                 } catch (e) {

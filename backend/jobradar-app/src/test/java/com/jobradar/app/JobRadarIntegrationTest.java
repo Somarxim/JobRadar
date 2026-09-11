@@ -75,6 +75,10 @@ class JobRadarIntegrationTest {
     private com.jobradar.core.service.SearchTextBackfillService searchTextBackfillService;
     @Autowired
     private com.jobradar.core.service.CompanyService companyService;
+    @Autowired
+    private com.jobradar.core.service.CompanyTypeBackfillService companyTypeBackfillService;
+    @Autowired
+    private com.jobradar.core.repository.CompanyRepository companyRepository;
     /** 抓取层打桩：测试不依赖外网（真实站点的连通性/反爬属于运行环境，不属于逻辑正确性） */
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.jobradar.core.crawl.PageFetcher pageFetcher;
@@ -584,7 +588,7 @@ class JobRadarIntegrationTest {
                 "分级联测公司", null, "信息系统开发工程师", null, null, null, null, null, null));
         assertThat(created.company().tier()).isEqualTo(com.jobradar.core.domain.CompanyTier.NONE);
 
-        companyService.updateTier(created.company().id(), com.jobradar.core.domain.CompanyTier.TARGET);
+        companyService.update(created.company().id(), com.jobradar.core.domain.CompanyTier.TARGET, null);
 
         assertThat(jobService.detail(created.id()).company().tier())
                 .isEqualTo(com.jobradar.core.domain.CompanyTier.TARGET);
@@ -592,6 +596,44 @@ class JobRadarIntegrationTest {
         var sibling = jobService.create(new JobCreateRequest(
                 "分级联测公司", null, "软件测试工程师", null, null, null, null, null, null));
         assertThat(sibling.company().tier()).isEqualTo(com.jobradar.core.domain.CompanyTier.TARGET);
+    }
+
+    /**
+     * 企业性质自动识别：创建/导入时按公司名规则分类；存量 OTHER 由回填重判；
+     * 误判经 PATCH 手动纠正，且回填不会覆盖纠正结果（只动 OTHER）。
+     */
+    @Test
+    void companyTypeAutoClassifyBackfillAndCorrect() {
+        // 创建路径：未显式传类型时分类器兜底（公司名带强信号的全命中）
+        var bank = jobService.create(new JobCreateRequest(
+                "南京银行", null, "软件开发岗", null, null, null, null, null, null));
+        assertThat(bank.company().companyType()).isEqualTo(com.jobradar.core.domain.CompanyType.BANK);
+        var operator = jobService.create(new JobCreateRequest(
+                "中国移动", null, "软件研发", null, null, null, null, null, null));
+        assertThat(operator.company().companyType()).isEqualTo(com.jobradar.core.domain.CompanyType.OPERATOR);
+        // 显式传参优先于分类器（「中国移动」名字命中运营商，但显式指定了 institute）
+        var explicit = jobService.create(new JobCreateRequest(
+                "中国移动苏州研发中心", com.jobradar.core.domain.CompanyType.INSTITUTE,
+                "嵌入式工程师", null, null, null, null, null, null));
+        assertThat(explicit.company().companyType()).isEqualTo(com.jobradar.core.domain.CompanyType.INSTITUTE);
+
+        // 回填：OTHER 存量被重判（这里复用上面的「南京银行」——先改回 OTHER 模拟存量）
+        var bankCompany = companyRepository.findByName("南京银行").orElseThrow();
+        bankCompany.setCompanyType(com.jobradar.core.domain.CompanyType.OTHER);
+        companyRepository.save(bankCompany);
+        int[] result = companyTypeBackfillService.reclassifyOthers();
+        assertThat(result[1]).isGreaterThanOrEqualTo(1);
+        assertThat(companyRepository.findByName("南京银行").orElseThrow().getCompanyType())
+                .isEqualTo(com.jobradar.core.domain.CompanyType.BANK);
+
+        // 手动纠正：分类器把「中国移动」判成 operator，用户改成 central（回填不得覆盖非 OTHER）
+        var operatorCompany = companyRepository.findByName("中国移动").orElseThrow();
+        companyService.update(operatorCompany.getId(), null, com.jobradar.core.domain.CompanyType.SOE_CENTRAL);
+        assertThat(companyRepository.findByName("中国移动").orElseThrow().getCompanyType())
+                .isEqualTo(com.jobradar.core.domain.CompanyType.SOE_CENTRAL);
+        companyTypeBackfillService.reclassifyOthers();
+        assertThat(companyRepository.findByName("中国移动").orElseThrow().getCompanyType())
+                .isEqualTo(com.jobradar.core.domain.CompanyType.SOE_CENTRAL);
     }
 
     private int boardTotal() {

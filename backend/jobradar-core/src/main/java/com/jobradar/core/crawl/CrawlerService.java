@@ -8,6 +8,7 @@ import com.jobradar.core.domain.Job;
 import com.jobradar.core.repository.CompanyRepository;
 import com.jobradar.core.repository.CrawlSourceRepository;
 import com.jobradar.core.repository.JobRepository;
+import com.jobradar.core.util.CompanyTypeClassifier;
 import com.jobradar.core.util.DedupeHash;
 import com.jobradar.core.util.JdTextCleaner;
 import com.jobradar.core.util.JiebaSearchText;
@@ -198,6 +199,8 @@ public class CrawlerService {
         return companyRepository.findByName(name).orElseGet(() -> {
             Company c = new Company();
             c.setName(name);
+            // 创建时按公司名规则分类企业性质（运营商/银行/研究所…），避免全落 OTHER
+            c.setCompanyType(CompanyTypeClassifier.classify(name));
             return companyRepository.save(c);
         });
     }
