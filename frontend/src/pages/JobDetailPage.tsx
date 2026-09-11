@@ -16,7 +16,7 @@ import MatchReportCard from '@/components/MatchReportCard'
 import { ErrorState, LoadingState } from '@/components/StatusStates'
 import TransitionConfirmDialog, { type RollbackRequest } from '@/components/TransitionConfirmDialog'
 import {
-  CHANNEL_LABELS, COMPANY_TYPE_META, STAGE_META, STAGES,
+  CHANNEL_LABELS, COMPANY_TYPE_META, STAGE_META, STAGES, TIER_META,
   deadlineClass, deadlineCountdown, fmtDate, fmtDateTime, isRollback,
 } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -128,6 +128,32 @@ export default function JobDetailPage() {
           </p>
           <div className="flex gap-2 items-center mt-2 flex-wrap">
             <Badge className={typeMeta?.className} variant="outline">{typeMeta?.label}</Badge>
+            {/* 公司分级（投递规划）：tier 挂公司实体，改了同公司所有岗位共享 */}
+            <Select
+              value={job.company.tier}
+              onValueChange={async (v) => {
+                try {
+                  await api.updateCompanyTier(job.company.id, v as JobDetail['company']['tier'])
+                  toast.success(`「${job.company.name}」分级已更新`)
+                  load()
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : String(e))
+                }
+              }}
+            >
+              <SelectTrigger
+                className="h-6 w-auto gap-1 border-dashed px-2 text-xs"
+                title="公司分级：投递规划用（冲刺/主攻/保底）"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">未分级</SelectItem>
+                {Object.entries(TIER_META).map(([v, m]) => (
+                  <SelectItem key={v} value={v}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Badge variant="secondary">{job.source_platform}</Badge>
             {job.deadline && (
               <Badge variant="outline" className={cn('border-current/30', deadlineClass(job.deadline))}>

@@ -16,7 +16,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { COMPANY_TYPE_LABELS, COMPANY_TYPE_META, STAGE_META, deadlineClass, fmtDate } from '@/lib/labels'
+import { COMPANY_TYPE_LABELS, COMPANY_TYPE_META, STAGE_META, TIER_META, deadlineClass, fmtDate } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import JobCreateDialog from '@/components/JobCreateDialog'
 import JobEditDialog from '@/components/JobEditDialog'
@@ -29,6 +29,7 @@ import { Trash2 } from 'lucide-react'
 export default function JobsPage() {
   const [q, setQ] = useState('')
   const [companyType, setCompanyType] = useState('')
+  const [tier, setTier] = useState('')
   const [stage, setStage] = useState('')
   const [sort, setSort] = useState('created_desc')
   const [page, setPage] = useState(1)
@@ -44,11 +45,12 @@ export default function JobsPage() {
       q: q || undefined,
       company_type: companyType || undefined,
       stage: stage || undefined,
+      tier: tier || undefined,
       sort,
       page,
       size: 20,
     }).then(setData).catch((e) => setError(e.message))
-  }, [q, companyType, stage, sort, page])
+  }, [q, companyType, stage, tier, sort, page])
 
   useEffect(load, [load])
 
@@ -116,6 +118,16 @@ export default function JobsPage() {
             <SelectItem value="__all">全部类型</SelectItem>
             {Object.entries(COMPANY_TYPE_LABELS).map(([v, l]) => (
               <SelectItem key={v} value={v}>{l}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={tier} onValueChange={(v) => { setTier(v === '__all' ? '' : v); setPage(1) }}>
+          <SelectTrigger className="w-32"><SelectValue placeholder="公司分级" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all">全部分级</SelectItem>
+            <SelectItem value="none">未分级</SelectItem>
+            {Object.entries(TIER_META).map(([v, m]) => (
+              <SelectItem key={v} value={v}>{m.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -190,6 +202,11 @@ export default function JobsPage() {
                 {/* 公司类型色点：低成本增加表格色彩层次，颜色语义与详情页徽章一致 */}
                 <span className={cn('mr-1.5 inline-block size-2 rounded-full align-middle', COMPANY_TYPE_META[j.company.company_type]?.dot ?? 'bg-zinc-300')} />
                 <Link to={`/jobs/${j.id}`} className="hover:underline">{j.company.name}</Link>
+                {j.company.tier !== 'none' && TIER_META[j.company.tier] && (
+                  <Badge variant="outline" className={cn('ml-1.5 px-1 py-0 text-[10px]', TIER_META[j.company.tier].className)}>
+                    {TIER_META[j.company.tier].label}
+                  </Badge>
+                )}
               </TableCell>
               <TableCell className="max-w-72 truncate">
                 <Link to={`/jobs/${j.id}`} className="hover:underline">{j.title}</Link>

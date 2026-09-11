@@ -73,6 +73,8 @@ class JobRadarIntegrationTest {
     private com.jobradar.core.service.DashboardService dashboardService;
     @Autowired
     private com.jobradar.core.service.SearchTextBackfillService searchTextBackfillService;
+    @Autowired
+    private com.jobradar.core.service.CompanyService companyService;
     /** 抓取层打桩：测试不依赖外网（真实站点的连通性/反爬属于运行环境，不属于逻辑正确性） */
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.jobradar.core.crawl.PageFetcher pageFetcher;
@@ -573,6 +575,23 @@ class JobRadarIntegrationTest {
         assertThat(searchTextBackfillService.backfillBatch()).isGreaterThanOrEqualTo(1);
         assertThat(jobService.search("大模型", null, null, null, null, null, "created_desc", 1, 10)
                 .items()).anySatisfy(j -> assertThat(j.id()).isEqualTo(created.id()));
+    }
+
+    /** 公司分级（W3-4 起步）：tier 挂在公司实体，更新后岗位详情联动可见 */
+    @Test
+    void companyTierUpdatePropagatesToJobDetail() {
+        var created = jobService.create(new JobCreateRequest(
+                "分级联测公司", null, "信息系统开发工程师", null, null, null, null, null, null));
+        assertThat(created.company().tier()).isEqualTo(com.jobradar.core.domain.CompanyTier.NONE);
+
+        companyService.updateTier(created.company().id(), com.jobradar.core.domain.CompanyTier.TARGET);
+
+        assertThat(jobService.detail(created.id()).company().tier())
+                .isEqualTo(com.jobradar.core.domain.CompanyTier.TARGET);
+        // 同公司另一岗位共享分级（tier 不在 job 上）
+        var sibling = jobService.create(new JobCreateRequest(
+                "分级联测公司", null, "软件测试工程师", null, null, null, null, null, null));
+        assertThat(sibling.company().tier()).isEqualTo(com.jobradar.core.domain.CompanyTier.TARGET);
     }
 
     private int boardTotal() {
