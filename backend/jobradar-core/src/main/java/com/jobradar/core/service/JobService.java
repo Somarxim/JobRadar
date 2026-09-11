@@ -25,6 +25,7 @@ import com.jobradar.core.repository.CompanyRepository;
 import com.jobradar.core.repository.JobRepository;
 import com.jobradar.core.repository.MatchReportRepository;
 import com.jobradar.core.repository.RecommendationRepository;
+import com.jobradar.core.util.CompanyTypeClassifier;
 import com.jobradar.core.util.DedupeHash;
 import com.jobradar.core.util.JiebaSearchText;
 import com.jobradar.core.util.JdTextCleaner;
@@ -427,7 +428,8 @@ public class JobService {
                 .orElseGet(() -> {
                     Company c = new Company();
                     c.setName(normalized);
-                    if (type != null) c.setCompanyType(type);
+                    // 显式指定的类型优先；否则按公司名规则分类，避免全落 OTHER
+                    c.setCompanyType(type != null ? type : CompanyTypeClassifier.classify(normalized));
                     return companyRepository.save(c);
                 });
     }
