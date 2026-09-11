@@ -93,5 +93,14 @@
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
         </dependency>
+        <!-- jieba-analysis：中文分词。jobs.search_vector 是 to_tsvector('simple', search_text)
+             生成列——'simple' 配置不做中文分词，所以应用层先用 jieba 把文本切成空格分隔的
+             词元写入 search_text，检索时查询词同样切词后拼 tsquery（JiebaSearchText）。
+             选 jieba 而非 IK/ANSJ：纯 Java 无 native 依赖、词典内置、API 两行上手 -->
+        <dependency>
+            <groupId>com.huaban</groupId>
+            <artifactId>jieba-analysis</artifactId>
+            <version>${jieba.version}</version>
+        </dependency>
     </dependencies>
 </project>

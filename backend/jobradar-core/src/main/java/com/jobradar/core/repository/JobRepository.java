@@ -4,6 +4,8 @@ import com.jobradar.core.domain.Job;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -40,6 +42,22 @@ public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificatio
 
     /** 图表统计（W4-3）：区间入库岗位（含已归档——当日"收录"动作不因事后清理而抹除） */
     List<Job> findByCreatedAtGreaterThanEqual(Instant since);
+
+    /**
+     * 全文检索（W3）：search_vector @@ to_tsquery。为什么用 native 而不是 Criteria：
+     * PostgreSQL 的 @@ 匹配运算符不是函数，JPA Criteria 的 cb.function() 无法表达；
+     * 走 native 先取 id 集合，再回到 Specification 用 id IN (...) 与其他动态条件组合。
+     * tsq 由 JiebaSearchText.tsQuery 生成（词元白名单过滤 + 绑定参数，无注入面）。
+     * LIMIT 1000 防御深命中集：超过即截断（搜索意图是前几页，全量枚举无意义）。
+     */
+    @Query(value = "select j.id from jobs j where j.search_vector @@ to_tsquery('simple', :tsq)"
+            + " order by ts_rank(j.search_vector, to_tsquery('simple', :tsq)) desc limit 1000",
+            nativeQuery = true)
+    List<Long> findIdsByFullText(@Param("tsq") String tsq);
+
+    /** search_text 回填：还没生成索引文本的存量岗位（V2 之后、全文检索上线之前录入的） */
+    @Query("select j from Job j join fetch j.company where j.searchText = '' order by j.id")
+    List<Job> findSearchTextMissing(Pageable pageable);
 
     /** 图表统计（W4-3）：在架岗位的公司类型分布 */
     @org.springframework.data.jpa.repository.Query(
