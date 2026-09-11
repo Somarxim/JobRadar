@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '@/api/client'
@@ -23,7 +23,7 @@ import JobEditDialog from '@/components/JobEditDialog'
 import IngestDialog from '@/components/IngestDialog'
 import { STAGES } from '@/lib/labels'
 import { ErrorState, LoadingState } from '@/components/StatusStates'
-import { Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ListTree, Trash2 } from 'lucide-react'
 
 /** 岗位库：搜索筛选 + 表格 + 手动录入/粘贴导入（roadmap W1 核心页） */
 export default function JobsPage() {
@@ -39,6 +39,37 @@ export default function JobsPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // 同公司折叠分组：默认开（解决「同公司岗位刷屏」），开关状态跨会话记忆
+  const [grouped, setGrouped] = useState(() => localStorage.getItem('jobs.grouped') !== '0')
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
+
+  const toggleGrouped = () => {
+    setGrouped((g) => {
+      localStorage.setItem('jobs.grouped', g ? '0' : '1')
+      return !g
+    })
+  }
+  const toggleCollapse = (companyId: number) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(companyId)) next.delete(companyId)
+      else next.add(companyId)
+      return next
+    })
+  }
+
+  // 分组：本页内按公司聚簇（保序，组间按首次出现排序），仅 ≥2 岗位的组出折叠头。
+  // 注意这是「页内分组」而非服务端聚合——跨页的同公司岗位会各自成组，纯排序诉求可关掉分组
+  const groups = useMemo(() => {
+    if (!data) return []
+    const map = new Map<number, { company: JobSummary['company']; jobs: JobSummary[] }>()
+    for (const j of data.items) {
+      const g = map.get(j.company.id)
+      if (g) g.jobs.push(j)
+      else map.set(j.company.id, { company: j.company, jobs: [j] })
+    }
+    return [...map.values()]
+  }, [data])
 
   const load = useCallback(() => {
     api.listJobs({
@@ -94,6 +125,47 @@ export default function JobsPage() {
     }
   }
 
+  /** 单个岗位行（分组/平铺两种渲染共用） */
+  const renderJobRow = (j: JobSummary) => (
+    <TableRow key={j.id} className={cn('cursor-pointer', selected.has(j.id) && 'bg-muted/50')}>
+      <TableCell onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          className="size-4 align-middle accent-primary"
+          checked={selected.has(j.id)}
+          onChange={() => toggle(j.id)}
+          aria-label={`选择 ${j.company.name} ${j.title}`}
+        />
+      </TableCell>
+      <TableCell className="font-medium">
+        {/* 公司类型色点：低成本增加表格色彩层次，颜色语义与详情页徽章一致 */}
+        <span className={cn('mr-1.5 inline-block size-2 rounded-full align-middle', COMPANY_TYPE_META[j.company.company_type]?.dot ?? 'bg-zinc-300')} />
+        <Link to={`/jobs/${j.id}`} className="hover:underline">{j.company.name}</Link>
+        {j.company.tier !== 'none' && TIER_META[j.company.tier] && (
+          <Badge variant="outline" className={cn('ml-1.5 px-1 py-0 text-[10px]', TIER_META[j.company.tier].className)}>
+            {TIER_META[j.company.tier].label}
+          </Badge>
+        )}
+      </TableCell>
+      <TableCell className="max-w-72 truncate">
+        <Link to={`/jobs/${j.id}`} className="hover:underline">{j.title}</Link>
+      </TableCell>
+      <TableCell>{j.city ?? '—'}</TableCell>
+      <TableCell>{j.salary_range ?? '—'}</TableCell>
+      {/* DDL 按紧急度着色：≤3 天红 / ≤7 天橙 / 过期删除线（阈值集中在 labels.ts） */}
+      <TableCell className={deadlineClass(j.deadline)}>{fmtDate(j.deadline)}</TableCell>
+      <TableCell>
+        {j.application_stage
+          ? <Badge className={STAGE_META[j.application_stage].className}>{STAGE_META[j.application_stage].label}</Badge>
+          : <span className="text-muted-foreground text-xs">未收藏</span>}
+      </TableCell>
+      <TableCell className="text-muted-foreground text-xs">{j.source_platform}</TableCell>
+      <TableCell>
+        <JobEditDialog jobId={j.id} onDone={load} iconOnly />
+      </TableCell>
+    </TableRow>
+  )
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -148,6 +220,16 @@ export default function JobsPage() {
             <SelectItem value="deadline_asc">DDL 从近到远</SelectItem>
           </SelectContent>
         </Select>
+        {/* 分组开关：同公司岗位聚簇+可折叠，防「同公司刷屏」；纯排序浏览时可关闭 */}
+        <Button
+          variant={grouped ? 'secondary' : 'outline'}
+          size="sm"
+          className="h-9"
+          onClick={toggleGrouped}
+          title="本页内同公司 ≥2 个岗位时折叠成组"
+        >
+          <ListTree className="size-3.5" />按公司分组
+        </Button>
       </div>
 
       {error && <ErrorState message={error} onRetry={load} />}
@@ -187,45 +269,40 @@ export default function JobsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data?.items.map((j) => (
-            <TableRow key={j.id} className={cn('cursor-pointer', selected.has(j.id) && 'bg-muted/50')}>
-              <TableCell onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="checkbox"
-                  className="size-4 align-middle accent-primary"
-                  checked={selected.has(j.id)}
-                  onChange={() => toggle(j.id)}
-                  aria-label={`选择 ${j.company.name} ${j.title}`}
-                />
-              </TableCell>
-              <TableCell className="font-medium">
-                {/* 公司类型色点：低成本增加表格色彩层次，颜色语义与详情页徽章一致 */}
-                <span className={cn('mr-1.5 inline-block size-2 rounded-full align-middle', COMPANY_TYPE_META[j.company.company_type]?.dot ?? 'bg-zinc-300')} />
-                <Link to={`/jobs/${j.id}`} className="hover:underline">{j.company.name}</Link>
-                {j.company.tier !== 'none' && TIER_META[j.company.tier] && (
-                  <Badge variant="outline" className={cn('ml-1.5 px-1 py-0 text-[10px]', TIER_META[j.company.tier].className)}>
-                    {TIER_META[j.company.tier].label}
-                  </Badge>
+          {grouped
+            ? groups.map((g) => (
+              <Fragment key={g.company.id}>
+                {/* 组头：仅同页 ≥2 岗位的公司出现（单岗位公司不出头行，避免双重噪音） */}
+                {g.jobs.length >= 2 && (
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableCell colSpan={9} className="py-1.5">
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 text-left"
+                        onClick={() => toggleCollapse(g.company.id)}
+                        aria-label={`${collapsed.has(g.company.id) ? '展开' : '折叠'} ${g.company.name}`}
+                      >
+                        {collapsed.has(g.company.id)
+                          ? <ChevronRight className="size-3.5 text-muted-foreground" />
+                          : <ChevronDown className="size-3.5 text-muted-foreground" />}
+                        <span className={cn('inline-block size-2 rounded-full', COMPANY_TYPE_META[g.company.company_type]?.dot ?? 'bg-zinc-300')} />
+                        <span className="font-medium">{g.company.name}</span>
+                        {g.company.tier !== 'none' && TIER_META[g.company.tier] && (
+                          <Badge variant="outline" className={cn('px-1 py-0 text-[10px]', TIER_META[g.company.tier].className)}>
+                            {TIER_META[g.company.tier].label}
+                          </Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {COMPANY_TYPE_META[g.company.company_type]?.label ?? '其他'} · {g.jobs.length} 个岗位
+                        </span>
+                      </button>
+                    </TableCell>
+                  </TableRow>
                 )}
-              </TableCell>
-              <TableCell className="max-w-72 truncate">
-                <Link to={`/jobs/${j.id}`} className="hover:underline">{j.title}</Link>
-              </TableCell>
-              <TableCell>{j.city ?? '—'}</TableCell>
-              <TableCell>{j.salary_range ?? '—'}</TableCell>
-              {/* DDL 按紧急度着色：≤3 天红 / ≤7 天橙 / 过期删除线（阈值集中在 labels.ts） */}
-              <TableCell className={deadlineClass(j.deadline)}>{fmtDate(j.deadline)}</TableCell>
-              <TableCell>
-                {j.application_stage
-                  ? <Badge className={STAGE_META[j.application_stage].className}>{STAGE_META[j.application_stage].label}</Badge>
-                  : <span className="text-muted-foreground text-xs">未收藏</span>}
-              </TableCell>
-              <TableCell className="text-muted-foreground text-xs">{j.source_platform}</TableCell>
-              <TableCell>
-                <JobEditDialog jobId={j.id} onDone={load} iconOnly />
-              </TableCell>
-            </TableRow>
-          ))}
+                {(!collapsed.has(g.company.id) || g.jobs.length < 2) && g.jobs.map(renderJobRow)}
+              </Fragment>
+            ))
+            : data?.items.map(renderJobRow)}
           {data && data.items.length === 0 && (
             <TableRow>
               <TableCell colSpan={9} className="text-center text-muted-foreground py-8">

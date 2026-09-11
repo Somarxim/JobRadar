@@ -8,6 +8,7 @@ import type {
   BoardResponse,
   CalendarEvent,
   CompanyTier,
+  CompanyType,
   DashboardStats,
   DashboardSummary,
   EventItem,
@@ -92,10 +93,10 @@ export const api = {
     request<ApplicationCard>(`/api/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Companies
-  /** 更新公司分级（tier 挂公司实体，同公司岗位共享） */
-  updateCompanyTier: (companyId: number, tier: CompanyTier) =>
-    request<{ tier: CompanyTier }>(`/api/companies/${companyId}`, {
-      method: 'PATCH', body: JSON.stringify({ tier }),
+  /** 部分更新公司属性（tier 分级 / companyType 企业性质纠正，null=保持原值） */
+  updateCompany: (companyId: number, patch: { tier?: CompanyTier; companyType?: CompanyType }) =>
+    request<{ tier: CompanyTier; company_type: CompanyType }>(`/api/companies/${companyId}`, {
+      method: 'PATCH', body: JSON.stringify(patch),
     }),
 
   // Dashboard
