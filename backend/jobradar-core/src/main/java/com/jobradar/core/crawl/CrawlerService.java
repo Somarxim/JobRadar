@@ -10,6 +10,7 @@ import com.jobradar.core.repository.CrawlSourceRepository;
 import com.jobradar.core.repository.JobRepository;
 import com.jobradar.core.util.DedupeHash;
 import com.jobradar.core.util.JdTextCleaner;
+import com.jobradar.core.util.JiebaSearchText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -138,6 +139,8 @@ public class CrawlerService {
             job.setPublishDate(parseDateLenient(p.publishDate()));
             job.setDeadline(parseDateLenient(p.deadline()));
             job.setDedupeHash(hash);
+            job.setSearchText(JiebaSearchText.indexText(
+                    job.getCompany().getName(), job.getTitle(), job.getCity(), job.getJdText()));
             jobRepository.save(job);
             created++;
         }

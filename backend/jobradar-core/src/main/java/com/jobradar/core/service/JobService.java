@@ -26,6 +26,7 @@ import com.jobradar.core.repository.JobRepository;
 import com.jobradar.core.repository.MatchReportRepository;
 import com.jobradar.core.repository.RecommendationRepository;
 import com.jobradar.core.util.DedupeHash;
+import com.jobradar.core.util.JiebaSearchText;
 import com.jobradar.core.util.JdTextCleaner;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Subquery;
@@ -103,12 +104,18 @@ public class JobService {
             ps.add(cb.isTrue(root.get("active")));
 
             if (q != null && !q.isBlank()) {
-                // W1 用 LIKE 模糊匹配过渡；search_vector 全文检索与语义搜索在 W3 上线
-                String like = "%" + q.trim() + "%";
-                ps.add(cb.or(
-                        cb.like(root.get("title"), like),
-                        cb.like(root.get("company").get("name"), like),
-                        cb.like(root.get("city"), like)));
+                // 全文检索（W3 上线）：LIKE 对中文只能做子串匹配，且无法走索引。
+                // jieba 把查询词切成词元拼 tsquery，先经 search_vector GIN 索引取 id 集合，
+                // 再以 id IN (...) 回到 Specification 与其他动态条件组合（公司类型/阶段等）。
+                // 相对 LIKE 的语义变化：子串不再命中（如搜 "ava" 不再命中 "Java"）——
+                // 中文搜索场景词元匹配才是用户意图，该取舍成立。
+                String tsq = JiebaSearchText.tsQuery(q);
+                if (tsq.isEmpty()) {
+                    ps.add(cb.disjunction()); // 查询词无有效词元（纯标点）→ 零命中
+                } else {
+                    List<Long> ids = jobRepository.findIdsByFullText(tsq);
+                    ps.add(ids.isEmpty() ? cb.disjunction() : root.get("id").in(ids));
+                }
             }
             if (typeFilter != null) {
                 ps.add(cb.equal(root.get("company").get("companyType"), typeFilter));
@@ -183,6 +190,8 @@ public class JobService {
         job.setPublishDate(req.publishDate());
         job.setDeadline(req.deadline());
         job.setDedupeHash(hash);
+        job.setSearchText(JiebaSearchText.indexText(
+                company.getName(), job.getTitle(), job.getCity(), job.getJdText()));
         return toDetail(jobRepository.save(job));
     }
 
@@ -300,6 +309,8 @@ public class JobService {
         job.setSourceUrl(req.url());
         job.setDeadline(deadline);
         job.setDedupeHash(hash);
+        job.setSearchText(JiebaSearchText.indexText(
+                companyEntity.getName(), job.getTitle(), job.getCity(), job.getJdText()));
         Job saved = jobRepository.save(job);
 
         if (deadline == null) {
@@ -356,6 +367,11 @@ public class JobService {
         if (req.publishDate() != null) job.setPublishDate(req.publishDate());
         if (req.deadline() != null) job.setDeadline(req.deadline());
         if (req.active() != null) job.setActive(req.active());
+        if (req.title() != null || req.jdText() != null || req.jdSummary() != null || req.city() != null) {
+            job.setSearchText(JiebaSearchText.indexText(
+                    job.getCompany().getName(), job.getTitle(), job.getCity(),
+                    job.getJdSummary(), job.getJdText()));
+        }
         // 无需显式 save：事务内托管实体的字段变更会被 Hibernate 脏检查（dirty checking）
         // 自动同步。这也是 @Transactional 边界内"托管对象"语义的一部分。
         return toDetail(job);
