@@ -38,16 +38,19 @@ export function isRollback(from: Stage, to: Stage): boolean {
  * 公司类型：中文名 + 展示色，集中维护（单一事实源）。
  * 面试可讲点：展示层字典与后端枚举解耦——后端只存英文枚举值，
  * 颜色/文案变更不动契约、不迁数据；新增类型只需在此加一行。
+ *
+ * band 字段：岗位库分组头的左侧色带（border-l-*）。不采用「bg- → border-l-」字符串拼接，
+ * 因为 Tailwind JIT 只扫描源码中字面出现的类名，动态拼接的类不会被打包（经典陷阱）。
  */
-export const COMPANY_TYPE_META: Record<string, { label: string; className: string; dot: string }> = {
-  internet: { label: '互联网', className: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500' },
-  soe_central: { label: '央企', className: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500' },
-  soe_local: { label: '地方国企', className: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
-  institute: { label: '军工/研究所', className: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-500' },
-  operator: { label: '运营商', className: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
-  bank: { label: '银行', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-  foreign: { label: '外企', className: 'bg-violet-50 text-violet-700 border-violet-200', dot: 'bg-violet-500' },
-  other: { label: '其他', className: 'bg-zinc-100 text-zinc-600 border-zinc-200', dot: 'bg-zinc-400' },
+export const COMPANY_TYPE_META: Record<string, { label: string; className: string; dot: string; band: string }> = {
+  internet: { label: '互联网', className: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500', band: 'border-l-sky-500' },
+  soe_central: { label: '央企', className: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500', band: 'border-l-rose-500' },
+  soe_local: { label: '地方国企', className: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500', band: 'border-l-orange-500' },
+  institute: { label: '军工/研究所', className: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-500', band: 'border-l-indigo-500' },
+  operator: { label: '运营商', className: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500', band: 'border-l-blue-500' },
+  bank: { label: '银行', className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', band: 'border-l-emerald-500' },
+  foreign: { label: '外企', className: 'bg-violet-50 text-violet-700 border-violet-200', dot: 'bg-violet-500', band: 'border-l-violet-500' },
+  other: { label: '其他', className: 'bg-zinc-100 text-zinc-600 border-zinc-200', dot: 'bg-zinc-400', band: 'border-l-zinc-400' },
 }
 
 /** 供下拉框使用的纯文案映射（由 META 派生，避免两处维护漂移） */
