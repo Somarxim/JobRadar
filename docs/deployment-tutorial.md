@@ -147,8 +147,14 @@ curl http://127.0.0.1:8080/api/health   # 期望返回含 "status":"UP" 的 JSON
 
 ### 4.2 安装并配置 Caddy
 
+> Ubuntu 22.04/24.04 自带仓库**没有** caddy 包，必须先加官方 apt 源（本次部署实测踩坑）：
+
 ```bash
-apt install -y caddy
+# 加 Caddy 官方 apt 源
+apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
+apt update && apt install -y caddy
 
 cat > /etc/caddy/Caddyfile << 'EOF'
 api.example.top {
@@ -260,6 +266,34 @@ docker logs -f jobradar-app    # 应用（含 LLM 调用/爬虫明细）
 docker logs jobradar-db        # 数据库
 journalctl -u caddy -f         # HTTPS 层（Caddy 走 systemd 日志，无独立 CLI 子命令）
 ```
+
+---
+
+## 7.5 可选：把本地开发数据迁移到服务器
+
+如果你先在本地跑了一段时间再部署，可以把本地数据整体搬上去（迁移后**服务器成为唯一事实源**，本地库不要再写入，否则数据分叉）：
+
+```bash
+# 本地执行
+docker exec jobradar-db pg_dump -U postgres -Fc jobradar > /tmp/jobradar.dump
+scp /tmp/jobradar.dump root@1.2.3.4:/tmp/
+
+# 服务器执行（app 暂停 → 重建库 → 恢复 → 拉起）
+cd /opt/JobRadar/deploy
+docker compose -f docker-compose.prod.yml stop app
+docker cp /tmp/jobradar.dump jobradar-db:/tmp/
+docker exec jobradar-db psql -U postgres -c "DROP DATABASE jobradar WITH (FORCE);"
+docker exec jobradar-db psql -U postgres -c "CREATE DATABASE jobradar;"
+docker exec jobradar-db pg_restore -U postgres -d jobradar --no-owner /tmp/jobradar.dump
+docker compose -f docker-compose.prod.yml start app
+
+# 简历文件（本地默认 ~/.jobradar/resumes/）
+rsync -az ~/.jobradar/resumes/ root@1.2.3.4:/tmp/resumes-migrate/
+ssh root@1.2.3.4 "docker cp /tmp/resumes-migrate/. jobradar-app:/data/resumes/ && rm -rf /tmp/resumes-migrate /tmp/jobradar.dump"
+```
+
+> pg_dump 会带上 flyway_schema_history，应用重启后 Flyway 走 validate 不重复迁移。
+> 注意两边代码版本要一致（同一份 main），否则表结构可能对不上。
 
 ---
 
