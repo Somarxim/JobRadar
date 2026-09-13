@@ -38,10 +38,10 @@ ENV JOBRADAR_RESUME_DIR=/data/resumes
 # 端口：8080 是默认，可通过环境变量覆盖
 EXPOSE 8080
 
-# 健康检查（Spring Boot Actuator 未引入，用根路径 404 也可接受；
-# 若后续加 actuator，改为 /actuator/health）
+# 健康检查：/api/health 无需认证（Spring Security 显式放行），
+# 纯存活探针，不依赖数据库
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD wget -qO- http://localhost:8080/api/dashboard/summary || exit 1
+  CMD wget -qO- http://localhost:8080/api/health || exit 1
 
 COPY --from=builder /build/jobradar-app/target/*.jar app.jar
 
