@@ -19,8 +19,11 @@ import { cn } from '@/lib/utils'
 import TransitionConfirmDialog, { type RollbackRequest } from '@/components/TransitionConfirmDialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Pencil } from 'lucide-react'
+import { KanbanSquare, List, Pencil, Search } from 'lucide-react'
 import { ErrorState, LoadingState } from '@/components/StatusStates'
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
 
 /**
  * 投递看板：每列一个阶段，拖拽卡片跨列即触发状态流转 API。
@@ -38,6 +41,17 @@ export default function BoardPage() {
   const [channel, setChannel] = useState('official')
   const [submitting, setSubmitting] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
+  // 视图切换：看板 vs 列表（localStorage 记忆）
+  const [view, setView] = useState<'board' | 'list'>(() => {
+    const v = localStorage.getItem('board.view')
+    return v === 'list' ? 'list' : 'board'
+  })
+  useEffect(() => { localStorage.setItem('board.view', view) }, [view])
+
+  // 列表视图筛选
+  const [filterStage, setFilterStage] = useState<Stage | 'all'>('all')
+  const [searchQ, setSearchQ] = useState('')
 
   const load = useCallback(() => {
     api.board().then((b) => setGroups(b.groups)).catch((e) => setError(e.message))
@@ -116,7 +130,33 @@ export default function BoardPage() {
 
   return (
     <div className="space-y-4 h-full flex flex-col">
-      <h1 className="text-xl font-semibold">投递看板</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-xl font-semibold">投递管理</h1>
+        <div className="inline-flex rounded-md border bg-muted p-0.5">
+          <button
+            type="button"
+            onClick={() => setView('board')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-sm px-3 py-1 text-sm transition-colors',
+              view === 'board' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <KanbanSquare className="size-3.5" />看板
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('list')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-sm px-3 py-1 text-sm transition-colors',
+              view === 'list' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <List className="size-3.5" />列表
+          </button>
+        </div>
+      </div>
+
+      {view === 'board' ? (
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
         <div className="grid grid-cols-4 gap-3 xl:grid-cols-8 flex-1 items-start">
           {STAGES.map((stage) => (
@@ -124,6 +164,15 @@ export default function BoardPage() {
           ))}
         </div>
       </DndContext>
+      ) : (
+        <ApplicationListView
+          groups={groups}
+          filterStage={filterStage}
+          setFilterStage={setFilterStage}
+          searchQ={searchQ}
+          setSearchQ={setSearchQ}
+        />
+      )}
 
       {/* 拖到「已投递」时的渠道确认框 */}
       <Dialog open={pendingApplied !== null} onOpenChange={(open) => !open && setPendingApplied(null)}>
@@ -267,6 +316,117 @@ function CardView({ card, onEditTodo }: { card: ApplicationCard; onEditTodo: (ca
       >
         <Pencil className="size-3" />
       </button>
+    </div>
+  )
+}
+
+/** 列表视图：扁平表格，支持阶段筛选与公司/岗位搜索 */
+function ApplicationListView({
+  groups,
+  filterStage,
+  setFilterStage,
+  searchQ,
+  setSearchQ,
+}: {
+  groups: Record<Stage, ApplicationCard[]>
+  filterStage: Stage | 'all'
+  setFilterStage: (s: Stage | 'all') => void
+  searchQ: string
+  setSearchQ: (s: string) => void
+}) {
+  const all = STAGES.flatMap((stage) => (groups[stage] ?? []).map((c) => ({ ...c, stage })))
+    .filter((c) => (filterStage === 'all' ? true : c.stage === filterStage))
+    .filter((c) => {
+      const q = searchQ.trim().toLowerCase()
+      if (!q) return true
+      return c.company_name.toLowerCase().includes(q) || c.title.toLowerCase().includes(q)
+    })
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            placeholder="搜索公司或岗位…"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            className="pl-9 w-64"
+          />
+        </div>
+        <Select value={filterStage} onValueChange={(v) => setFilterStage(v as Stage | 'all')}>
+          <SelectTrigger className="w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部阶段</SelectItem>
+            {STAGES.map((s) => (
+              <SelectItem key={s} value={s}>{STAGE_META[s].label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground ml-auto">共 {all.length} 条投递</span>
+      </div>
+
+      {all.length === 0 ? (
+        <div className="rounded-md border border-dashed px-3 py-12 text-center text-sm text-muted-foreground">
+          没有符合条件的投递记录
+        </div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>公司 · 岗位</TableHead>
+                <TableHead>城市</TableHead>
+                <TableHead>阶段</TableHead>
+                <TableHead>优先级</TableHead>
+                <TableHead>待办</TableHead>
+                <TableHead>最近更新</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {all.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <Link to={`/jobs/${c.job_id}`} className="font-medium hover:underline truncate max-w-[16rem]">
+                        {c.company_name}
+                      </Link>
+                      <span className="text-xs text-muted-foreground truncate max-w-[16rem]">{c.title}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{c.city ?? '—'}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={STAGE_META[c.stage].className}>
+                      {STAGE_META[c.stage].label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{c.priority}</TableCell>
+                  <TableCell>
+                    {c.next_action ? (
+                      <div className="text-xs">
+                        <div className="text-amber-700 truncate max-w-[10rem]">{c.next_action}</div>
+                        <div className="text-muted-foreground">{fmtDateTime(c.next_action_at)}</div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{fmtDateTime(c.updated_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to={`/jobs/${c.job_id}`}>查看岗位</Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   )
 }
