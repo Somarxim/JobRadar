@@ -6,12 +6,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { fmtDate } from '@/lib/labels'
 import { ErrorState, LoadingState } from '@/components/StatusStates'
 import {
-  Award, Briefcase, FileText, GraduationCap, RefreshCw, Star, Upload, Wrench,
+  Award, Briefcase, FileText, GraduationCap, RefreshCw, Star, Trash2, Upload, Wrench,
 } from 'lucide-react'
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -34,6 +34,7 @@ export default function ResumesPage() {
   const [uploading, setUploading] = useState(false)
   const [detail, setDetail] = useState<ResumeDetail | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   const load = useCallback(() => {
     api.listResumes().then((r) => setItems(r.items)).catch((e) => setError(e.message))
@@ -82,6 +83,20 @@ export default function ResumesPage() {
     try {
       await api.setDefaultResume(id)
       toast.success('已设为默认简历')
+      load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function doDelete(id: number) {
+    setBusyId(id)
+    try {
+      await api.deleteResume(id)
+      toast.success('简历已归档删除')
+      setConfirmDeleteId(null)
       load()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
@@ -154,6 +169,15 @@ export default function ResumesPage() {
                       <Star className="size-3.5" />设为默认
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    disabled={busyId === r.id}
+                    onClick={() => setConfirmDeleteId(r.id)}
+                  >
+                    <Trash2 className="size-3.5" />删除
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -162,6 +186,13 @@ export default function ResumesPage() {
       </div>
 
       <ResumeDetailDialog detail={detail} onClose={() => setDetail(null)} />
+      <DeleteConfirmDialog
+        open={confirmDeleteId != null}
+        name={items?.find((r) => r.id === confirmDeleteId)?.name ?? ''}
+        onCancel={() => setConfirmDeleteId(null)}
+        onConfirm={() => confirmDeleteId != null && doDelete(confirmDeleteId)}
+        busy={busyId === confirmDeleteId}
+      />
     </div>
   )
 }
@@ -256,6 +287,36 @@ function ResumeProfileView({ p }: { p: ParsedResume }) {
         </section>
       )}
     </div>
+  )
+}
+
+/** 删除确认弹窗：归档是软删，有匹配历史的简历不会真正丢失 */
+function DeleteConfirmDialog({
+  open, name, onCancel, onConfirm, busy,
+}: {
+  open: boolean
+  name: string
+  onCancel: () => void
+  onConfirm: () => void
+  busy: boolean
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>确认归档删除？</DialogTitle>
+          <DialogDescription>
+            「{name}」将被移出简历列表。若该简历已生成过匹配报告，数据会保留在后台供历史查看。
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onCancel} disabled={busy}>取消</Button>
+          <Button variant="destructive" onClick={onConfirm} disabled={busy}>
+            {busy ? '删除中…' : '确认删除'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

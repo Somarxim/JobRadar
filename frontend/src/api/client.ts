@@ -154,4 +154,6 @@ export const api = {
     request<ResumeDetail>(`/api/resumes/${id}/reparse`, { method: 'POST' }),
   setDefaultResume: (id: number) =>
     request<ResumeDetail>(`/api/resumes/${id}/default`, { method: 'PATCH' }),
+  deleteResume: (id: number) =>
+    request<void>(`/api/resumes/${id}`, { method: 'DELETE' }),
 }
