@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://api.your-domain.top/api/:path*"
+      "destination": "https://api.somarxim.cloud/api/:path*"
     },
     {
       "source": "/(.*)",
