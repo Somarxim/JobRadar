@@ -19,6 +19,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 
 import java.nio.charset.StandardCharsets;
@@ -77,6 +78,10 @@ public class SecurityConfig {
                                                    AuthenticationManager authenticationManager,
                                                    JobRadarProperties properties) throws Exception {
         return configureCommon(http, properties)
+                // 插件预认证：X-Local-Token 正确的请求直接获得已认证身份（否则插件会被 Session 拦截）
+                .addFilterBefore(new LocalTokenAuthFilter(
+                                properties.security() == null ? null : properties.security().localToken()),
+                        UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .anyRequest().authenticated()
