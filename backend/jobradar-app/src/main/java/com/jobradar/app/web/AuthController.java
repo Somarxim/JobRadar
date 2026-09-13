@@ -11,18 +11,13 @@ import java.util.Map;
 /**
  * 认证状态查询：前端启动时调 /api/auth/me 判断登录态，
  * 决定渲染主界面还是跳登录页。
+ * （/api/health 存活探针在 HealthController，勿在此重复声明——同路径双映射会导致启动失败）
  */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/auth")
 public class AuthController {
 
-    /** 存活探针：无认证、无数据库依赖，Docker healthcheck / Caddy / 监控用 */
-    @GetMapping("/health")
-    public Map<String, String> health() {
-        return Map.of("status", "up");
-    }
-
-    @GetMapping("/auth/me")
+    @GetMapping("/me")
     public ResponseEntity<?> me(Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(401).body(Map.of("detail", "未登录"));
