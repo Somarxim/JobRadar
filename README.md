@@ -45,6 +45,7 @@ JobRadar 通过「多源采集 + 统一岗位库 + 投递看板 + AI 匹配 Agen
 | [docs/api-design.md](docs/api-design.md) | REST API 接口定义与示例 |
 | [docs/agent-design.md](docs/agent-design.md) | Agent 与 MCP Server 详细设计 |
 | [docs/deployment-tutorial.md](docs/deployment-tutorial.md) | **生产部署教程**：Vercel + 云服务器 + Docker + HTTPS，从零到上线 |
+| [docs/learning/project-walkthrough.md](docs/learning/project-walkthrough.md) | **项目全流程讲解**：生命周期主线 + 框架四段式拆解 + 可溯源数据（学习内化主文档） |
 | [docs/target-sources.md](docs/target-sources.md) | 目标企业清单（军工所/运营商/银行）与爬虫源 |
 | [docs/roadmap.md](docs/roadmap.md) | 开发路线图与里程碑 |
 
