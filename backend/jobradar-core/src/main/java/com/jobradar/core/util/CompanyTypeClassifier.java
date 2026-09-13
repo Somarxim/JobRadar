@@ -31,8 +31,9 @@ public final class CompanyTypeClassifier {
             Map.entry(CompanyType.OPERATOR, new String[]{
                     "中国移动", "中国联通", "中国电信", "中国铁塔", "中移动", "中联通", "中电信", "天翼"}),
             // 银行及软开中心（先于央企——国有大行都是「中国」开头）
+            // 「基金」归入金融桶：秋招语境下基金公司（兴全/易方达等）与银行同属金融机构
             Map.entry(CompanyType.BANK, new String[]{
-                    "银行", "农信", "银联", "邮储"}),
+                    "银行", "农信", "银联", "邮储", "基金"}),
             // 军工/科研院所（先于央企——「中国航天科技集团第五研究院」这类名字兼有两个信号）
             Map.entry(CompanyType.INSTITUTE, new String[]{
                     "研究所", "研究院", "科学院", "工程院", "设计院",
@@ -60,6 +61,7 @@ public final class CompanyTypeClassifier {
                     "科大讯飞", "商汤", "智谱", "月之暗面", "百川", "minimax", "深度求索", "deepseek",
                     "寒武纪", "地平线", "昆仑万维", "贝壳", "链家", "得物",
                     "米哈游", "鹰角", "莉莉丝", "奇安信", "金山", "用友", "金蝶",
+                    "联想", "lenovo", "汽车之家", "车之家",
                     "新浪", "微博", "搜狐", "知乎"}),
             // 地方国企：市政/公用事业命名模式
             Map.entry(CompanyType.SOE_LOCAL, new String[]{
