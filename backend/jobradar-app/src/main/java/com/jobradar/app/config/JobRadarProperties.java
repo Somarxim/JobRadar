@@ -14,7 +14,12 @@ import java.util.List;
 @ConfigurationProperties(prefix = "jobradar")
 public record JobRadarProperties(Security security, Cors cors) {
 
-    public record Security(String localToken) {
+    /**
+     * @param localToken   Chrome 插件/本地 API 校验令牌
+     * @param password     登录密码（生产环境必须走环境变量覆盖，禁止用默认值）
+     * @param authEnabled  是否启用登录认证；本地开发可设为 false 免登
+     */
+    public record Security(String localToken, String password, Boolean authEnabled) {
     }
 
     /** allowedOrigins 来自 yml 逗号分隔串（Spring 自动按逗号拆成 List） */

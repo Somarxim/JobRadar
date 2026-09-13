@@ -1,6 +1,8 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { Briefcase, CalendarDays, FileUser, KanbanSquare, LayoutDashboard, Radar } from 'lucide-react'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Briefcase, CalendarDays, FileUser, KanbanSquare, LayoutDashboard, LogOut, Radar } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { api } from '@/api/client'
+import { toast } from 'sonner'
 
 const NAV = [
   { to: '/', label: '仪表盘', icon: LayoutDashboard, end: true },
@@ -12,6 +14,18 @@ const NAV = [
 
 /** 全局布局：左侧导航 + 右侧内容区（React Router Outlet 渲染子路由） */
 export default function AppLayout() {
+  const navigate = useNavigate()
+
+  async function doLogout() {
+    try {
+      await api.logout()
+      toast.success('已退出登录')
+      navigate('/login', { replace: true })
+    } catch {
+      toast.error('退出失败')
+    }
+  }
+
   return (
     <div className="flex min-h-screen">
       {/* 深色侧边栏 + 白色内容区：slate-800 比 slate-900 浅一档，降低与内容区的割裂感 */}
@@ -43,6 +57,16 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
+        <div className="p-2 border-t border-slate-700">
+          <button
+            type="button"
+            onClick={doLogout}
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
+          >
+            <LogOut className="size-4" />
+            退出登录
+          </button>
+        </div>
       </aside>
       {/* 内容区铺浅灰底，让白色卡片从背景中「浮」出来，增加层次 */}
       <main className="flex-1 min-w-0 p-6 bg-muted/30">

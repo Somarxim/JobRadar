@@ -3,6 +3,10 @@
  * 手写对齐而非 codegen：W1 契约小且稳定；若契约膨胀可引入 openapi-typescript 生成。
  */
 
+export interface User {
+  username: string
+}
+
 export type CompanyType =
   | 'internet' | 'soe_central' | 'soe_local' | 'institute' | 'operator' | 'bank' | 'foreign' | 'other'
 export type CompanyTier = 'dream' | 'target' | 'backup' | 'none'
