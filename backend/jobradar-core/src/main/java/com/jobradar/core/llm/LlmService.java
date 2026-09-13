@@ -1,5 +1,6 @@
 package com.jobradar.core.llm;
 
+import com.jobradar.core.domain.CompanyType;
 import com.jobradar.core.domain.LlmUsage;
 import com.jobradar.core.repository.LlmUsageRepository;
 import org.slf4j.Logger;
@@ -458,6 +459,64 @@ public class LlmService {
             return Optional.empty();
         }
     }
+
+    /**
+     * 公司名称 → 企业性质（LLM fallback）：规则分类器命中 OTHER 时调用。
+     * 轻量分类任务，用 parse 模型即可；结果不持久化，由调用方缓存。
+     */
+    public Optional<CompanyType> classifyCompanyType(String companyName) {
+        if (parseModel == null || overBudget("company_type_classify", parseConfig.model())) {
+            return Optional.empty();
+        }
+        var converter = new BeanOutputConverter<>(CompanyTypeResult.class);
+        String prompt = """
+                你是中国企业性质识别专家。请根据公司名称判断其所属类型。
+
+                可选类型（严格从中选择其一，输出小写英文）：
+                - internet：互联网/科技/软件/IT/AI/电商/游戏公司（如阿里、腾讯、字节、百度、美团、小米、华为、蔚来、小鹏、商汤、科大讯飞、亿通国际、阿丘科技）
+                - soe_central：央企/中央直属国企（名称常带"中国"前缀，如国家电网、中石油、中国移动、中国航天）
+                - soe_local：地方国企/城投/地铁/燃气/水务/公交（名称常带城市名前缀）
+                - institute：军工/科研院所/设计院（如中国电科、航天科技、中科院、工程物理）
+                - operator：电信运营商（中国移动、中国联通、中国电信、中国铁塔）
+                - bank：银行/金融机构（如工商银行、招商银行、银联、农信社）
+                - foreign：外资/合资企业（如微软、谷歌、IBM、高通、英特尔、爱立信）
+                - other：以上均不符合（如传统制造业、零售、餐饮、物流、房地产、教育培训）
+
+                规则：只看公司名判断；科技公司（含软件、AI、SaaS）一律 internet；只输出 JSON 不要解释。
+                %s
+
+                公司名称：%s
+                """.formatted(converter.getFormat(), companyName);
+
+        long start = System.currentTimeMillis();
+        try {
+            ChatResponse resp = parseModel.call(new Prompt(prompt,
+                    OpenAiChatOptions.builder().model(parseConfig.model())
+                            .temperature(PARSE_TEMPERATURE).build()));
+            CompanyTypeResult r = converter.convert(resp.getResult().getOutput().getText());
+            CompanyType type = mapCompanyType(r != null ? r.type() : null);
+            recordUsage("company_type_classify", parseConfig.model(), resp.getMetadata().getUsage(),
+                    true, null, elapsed(start));
+            return Optional.of(type);
+        } catch (Exception e) {
+            log.warn("公司类型 LLM 分类失败: {}", e.getMessage());
+            recordUsage("company_type_classify", parseConfig.model(), null, false,
+                    truncate(e.getMessage()), elapsed(start));
+            return Optional.empty();
+        }
+    }
+
+    private static CompanyType mapCompanyType(String raw) {
+        if (raw == null || raw.isBlank()) return CompanyType.OTHER;
+        try {
+            return CompanyType.valueOf(raw.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return CompanyType.OTHER;
+        }
+    }
+
+    /** LLM 分类原始输出结构（仅用于 classifyCompanyType） */
+    public record CompanyTypeResult(String type) {}
 
     public LlmModelConfig visionConfig() {
         return visionConfig;
