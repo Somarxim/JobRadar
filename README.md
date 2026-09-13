@@ -44,6 +44,7 @@ JobRadar 通过「多源采集 + 统一岗位库 + 投递看板 + AI 匹配 Agen
 | [docs/data-model.md](docs/data-model.md) | 数据模型 ER 图、建表 DDL、状态机 |
 | [docs/api-design.md](docs/api-design.md) | REST API 接口定义与示例 |
 | [docs/agent-design.md](docs/agent-design.md) | Agent 与 MCP Server 详细设计 |
+| [docs/deployment-tutorial.md](docs/deployment-tutorial.md) | **生产部署教程**：Vercel + 云服务器 + Docker + HTTPS，从零到上线 |
 | [docs/target-sources.md](docs/target-sources.md) | 目标企业清单（军工所/运营商/银行）与爬虫源 |
 | [docs/roadmap.md](docs/roadmap.md) | 开发路线图与里程碑 |
 
@@ -57,6 +58,7 @@ docker compose -f deploy/docker-compose.yml up -d
 export DeepSeek_API_KEY=sk-...        # JD/简历解析、匹配、周报叙事（可选，缺失时相关能力自动降级）
 export DASHSCOPE_API_KEY=sk-...       # 招聘海报图片识别（可选）
 export JOBRADAR_LOCAL_TOKEN=...       # 前端/插件访问后端的本机令牌（默认 dev-only-token-change-me）
+export JOBRADAR_PASSWORD=...          # 网页登录密码（默认 jobradar；本地免登可设 JOBRADAR_AUTH_ENABLED=false）
 cd backend && mvn spring-boot:run -pl jobradar-app
 
 # 3. 前端（Vite dev server，/api 代理到 127.0.0.1:8080）
