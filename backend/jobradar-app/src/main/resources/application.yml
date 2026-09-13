@@ -3,6 +3,11 @@ server:
   # 仅监听回环地址：本地单用户应用，不暴露到局域网（architecture.md §6）
   # 生产环境通过 SERVER_ADDRESS=0.0.0.0 覆盖（Docker/云服务器必须暴露）
   address: ${SERVER_ADDRESS:127.0.0.1}
+  servlet:
+    session:
+      cookie:
+        # 生产（HTTPS 反代）置 true：Cookie 只经加密通道传输；本地 http 开发必须 false
+        secure: ${SESSION_COOKIE_SECURE:false}
 
 spring:
   application:
@@ -84,3 +89,11 @@ jobradar:
   # 本地文件存储：简历 PDF 原件目录（~ 展开由 ResumeService 处理）
   storage:
     resume-dir: ${JOBRADAR_RESUME_DIR:~/.jobradar/resumes}
+  # W3 爬虫调度：每日一轮抓取启用中的 crawl_sources；enabled=false 可整体关停
+  crawler:
+    enabled: ${CRAWLER_ENABLED:true}
+    cron: ${CRAWLER_CRON:0 30 7 * * *}
+  # W3 每日推荐调度：排在爬虫批次之后（默认 07:45），LLM 不可用时自动降级规则粗排
+  recommend:
+    enabled: ${RECOMMEND_ENABLED:true}
+    cron: ${RECOMMEND_CRON:0 45 7 * * *}
