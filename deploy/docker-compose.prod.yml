@@ -9,6 +9,12 @@ services:
     image: pgvector/pgvector:pg16
     container_name: jobradar-db
     restart: unless-stopped
+    # json-file 日志驱动默认无上限，长期运行会把磁盘写满——限制单文件 10MB 保留 3 个
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     environment:
       POSTGRES_DB: jobradar
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -29,6 +35,11 @@ services:
       dockerfile: Dockerfile
     container_name: jobradar-app
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     depends_on:
       db:
         condition: service_healthy
