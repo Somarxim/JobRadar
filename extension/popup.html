@@ -63,10 +63,14 @@
   <div id="status"></div>
 
   <details>
-    <summary>设置（本地 API 令牌）</summary>
+    <summary>设置（API 令牌 / 后端地址）</summary>
     <label>X-Local-Token（与后端 application.yml 的 jobradar.security.local-token 一致）</label>
     <input id="token" type="password" placeholder="dev-only-token-change-me">
-    <button id="saveToken" class="ghost">保存令牌</button>
+    <label>后端地址（默认本地；部署到服务器后改成 https://你的域名 或 http://服务器IP:8080）</label>
+    <input id="apiBase" type="text" placeholder="http://localhost:8080">
+    <label>前端地址（「查看详情」跳转用，默认本地）</label>
+    <input id="webBase" type="text" placeholder="http://localhost:5173">
+    <button id="saveToken" class="ghost">保存设置</button>
   </details>
 
   <script src="popup.js"></script>
