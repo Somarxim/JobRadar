@@ -1,5 +1,8 @@
 # JobRadar 部署指南
 
+> **想照抄步骤直接上线？看 [deployment-tutorial.md](deployment-tutorial.md)（推荐路径：Vercel + 香港轻量服务器 + Caddy）。**
+> 本文是方案对比与平台选型参考。
+
 JobRadar 是「前端静态站点 + 后端 Spring Boot + PostgreSQL(pgvector)」三层架构。
 本地开发用 `docker compose -f deploy/docker-compose.yml up -d` 起数据库即可；
 本文档覆盖**生产环境**的几种部署路径。
