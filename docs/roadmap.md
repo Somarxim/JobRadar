@@ -2,6 +2,7 @@
 
 | 版本 | 日期 | 状态 |
 |---|---|---|
+| v0.28 | 2026-09-13 | 生产部署配置：后端多阶段 Dockerfile（Maven→JRE Alpine）、前端 vercel.json（Vite SPA）、docker-compose.prod.yml（db+app 编排）、docs/deployment.md 部署指南（Vercel/Render/阿里云三种路径）。server.address 环境变量化，本地 127.0.0.1 安全默认，生产 0.0.0.0 覆盖 |
 | v0.27 | 2026-09-13 | LLM 语义分类 fallback：规则分类器返回 OTHER 时，调轻量 LLM 识别公司名所属类型（如亿通国际→internet），结果内存缓存避免重复调用；LLM 未配置/失败时降级 OTHER 不阻断爬虫。三层架构：规则层（快+零成本）→ LLM fallback 层（泛化补盲）→ 缓存层（去重） |
 | v0.26 | 2026-09-13 | 投递管理页加列表视图：BoardPage 顶部「看板/列表」toggle（localStorage 记忆），表格展示公司·岗位/城市/阶段/优先级/待办/最近更新，支持搜索+阶段筛选。看板适合做流转操作，列表适合做信息检索，两者互补 |
 | v0.25 | 2026-09-13 | 简历删除/归档：resumes 表加 archived 软删标记，list 过滤归档项；删除默认简历时自动转移默认资格；前端卡片加删除按钮 + 确认弹窗说明历史数据保留。解决秋招多版本简历堆积误选问题 |
