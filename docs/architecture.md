@@ -100,7 +100,7 @@ JobRadar/
 
 ### ADR-2：插件辅助采集为主，定向爬虫为辅（不变）
 
-- 不做互联网平台（BOSS 等）自动爬取；广度靠 Chrome 插件，增量发现靠国企/研究所/运营商官网爬虫（目标清单见 [target-sources.md](target-sources.md)）。
+- 不做互联网平台（BOSS 等）自动爬取；广度靠 Chrome 插件，增量发现靠国企/研究所/运营商官网爬虫（爬虫源配置见 crawl_sources 表）。
 - 理由同 v0.1：反爬合规与覆盖面的平衡；盲区痛点集中在反爬弱的官网。
 
 ### ADR-3：LLM 接入基于 Spring AI 抽象，不自造 Provider 层（v0.2 修订）

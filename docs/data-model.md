@@ -123,7 +123,7 @@ erDiagram
 
 - `dedupe_hash = sha1(normalize(company_name) + normalize(title) + normalize(city))`
 - normalize：去空白、全半角统一、公司名去后缀（有限公司/股份有限公司）、岗位名去括号备注。
-- 军工所特别注意：**同一研究所存在多种称谓**（"航空工业计算所"/"中航工业631所"/"AVIC 计算所"），normalize 规则需内置一份别名映射表（随 target-sources.md 清单维护），先别名归一再算 hash。
+- 军工所特别注意：**同一研究所存在多种称谓**（"航空工业计算所"/"中航工业631所"/"AVIC 计算所"），normalize 规则需内置一份别名映射表（backend 的 company-aliases.yml），先别名归一再算 hash。
 - 撞 hash → 合并（补充 `source_url` 到 jobs.meta 的 `also_seen_on` 数组），不新建记录。
 
 ### 2.3 全文检索（tsvector 方案）

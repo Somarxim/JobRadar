@@ -33,20 +33,18 @@ JobRadar 通过「多源采集 + 统一岗位库 + 投递看板 + AI 匹配 Agen
 | 采集 | Chrome Extension (MV3) + Jsoup/Playwright 定向爬虫 |
 | 工具链 | Maven / pnpm / JUnit 5 + Testcontainers / docker-compose |
 
-> 选型说明：后端刻意采用与作者既有 Python 项目（FastAPI/SQLite）不同的企业级栈——目标雇主（军工研究所/运营商/银行）以 Java/Spring 为主流，详见 docs/architecture.md ADR-0。
+> 选型说明：后端刻意采用企业级栈（Java/Spring）而非 Python/FastAPI——国企/银行/研究所等传统雇主的技术栈以 Java 为主流，项目同时充当实战演练，详见 docs/architecture.md ADR-0。
 
 ## 文档导航
 
 | 文档 | 内容 |
 |---|---|
-| [docs/PRD.md](docs/PRD.md) | 产品需求：背景、目标、功能分级、用户流程 |
 | [docs/architecture.md](docs/architecture.md) | 技术架构、模块划分、ADR 关键决策 |
 | [docs/data-model.md](docs/data-model.md) | 数据模型 ER 图、建表 DDL、状态机 |
 | [docs/api-design.md](docs/api-design.md) | REST API 接口定义与示例 |
 | [docs/agent-design.md](docs/agent-design.md) | Agent 与 MCP Server 详细设计 |
 | [docs/deployment-tutorial.md](docs/deployment-tutorial.md) | **生产部署教程**：Vercel + 云服务器 + Docker + HTTPS，从零到上线 |
-| [docs/learning/project-walkthrough.md](docs/learning/project-walkthrough.md) | **项目全流程讲解**：生命周期主线 + 框架四段式拆解 + 可溯源数据（学习内化主文档） |
-| [docs/target-sources.md](docs/target-sources.md) | 目标企业清单（军工所/运营商/银行）与爬虫源 |
+| [docs/deployment.md](docs/deployment.md) | 部署方案对比与平台选型参考 |
 | [docs/roadmap.md](docs/roadmap.md) | 开发路线图与里程碑 |
 
 ## 快速开始
@@ -75,7 +73,6 @@ cd backend && mvn -pl jobradar-mcp-server -am -DskipTests package
 
 ## 项目状态
 
-- 当前版本见 [docs/roadmap.md](docs/roadmap.md) 顶部版本表（四周计划 W1–W4 已交付）；
-- 自动化测试 46 个（JUnit 5 + Testcontainers 真实 PostgreSQL，含 MCP 协议级冒烟）；
-- 演示脚本（面试 3 分钟动线）见 roadmap §2 里程碑表；
-- 面试讲解素材：[docs/learning/interview-guide.md](docs/learning/interview-guide.md)。
+- 投递管理、岗位采集、AI 匹配/推荐/周报、MCP Server、生产部署全部可用；
+- 自动化测试 60+（JUnit 5 + Testcontainers 真实 PostgreSQL，含 MCP 协议级冒烟）；
+- 生产部署实践（含踩坑与成本）：[docs/deployment-tutorial.md](docs/deployment-tutorial.md)。
