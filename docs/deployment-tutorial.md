@@ -233,6 +233,23 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate app
 
 ## 7. 日常运维
 
+### Docker 速查（本项目常用就这几条）
+
+> 以下命令都在服务器上执行。`docker compose` 命令需要先 `cd /opt/JobRadar/deploy`
+> （compose 靠当前目录的 `docker-compose.prod.yml` + `.env` 工作）。
+
+| 目的 | 命令 |
+|---|---|
+| 看容器状态 | `docker compose -f docker-compose.prod.yml ps` |
+| 看应用实时日志 | `docker compose -f docker-compose.prod.yml logs -f app`（Ctrl+C 退出，不影响运行） |
+| 重启应用 | `docker compose -f docker-compose.prod.yml restart app` |
+| 改完 .env 后生效 | `docker compose -f docker-compose.prod.yml up -d --force-recreate app` |
+| 进数据库命令行 | `docker exec -it jobradar-db psql -U postgres -d jobradar`（退出输 `\q`） |
+| 看磁盘占用 | `docker system df` |
+| 清理废弃镜像（重建多次后） | `docker system prune`（会清掉旧镜像层，不影响运行中的容器和数据卷） |
+
+`.env` 文件位置：**`/opt/JobRadar/deploy/.env`**（所有密钥都在这里，权限 600，只有 root 可读）。
+
 ### 更新版本
 
 ```bash
@@ -241,6 +258,7 @@ cd deploy && docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 数据库迁移（Flyway）随应用启动自动执行，无需干预。
+**只改了前端的话不用上服务器**——push 后 Vercel 会自动重新部署。
 
 ### 备份（数据库是最核心资产）
 
