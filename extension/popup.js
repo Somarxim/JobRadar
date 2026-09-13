@@ -13,8 +13,11 @@
  *   因此提取分三层：DOM 主容器定位（治本）→ 噪音标记截断（安全网）→ LLM 过滤（兜底）。
  * - token 存 chrome.storage.local（仅本机浏览器可读写，不进页面上下文）。
  */
-const API = 'http://localhost:8080'
-const WEB = 'http://localhost:5173'
+const DEFAULT_API = 'http://localhost:8080'
+const DEFAULT_WEB = 'http://localhost:5173'
+// 后端/前端地址可在「设置」里改（部署到服务器后指向线上），存 chrome.storage.local
+let API = DEFAULT_API
+let WEB = DEFAULT_WEB
 
 const $ = (id) => document.getElementById(id)
 
@@ -92,8 +95,10 @@ function extractPage() {
 let pageUrl = ''
 
 async function init() {
-  const { token } = await chrome.storage.local.get('token')
-  if (token) $('token').value = token
+  const stored = await chrome.storage.local.get(['token', 'apiBase', 'webBase'])
+  if (stored.token) $('token').value = stored.token
+  if (stored.apiBase) { API = stored.apiBase.replace(/\/+$/, ''); $('apiBase').value = stored.apiBase }
+  if (stored.webBase) { WEB = stored.webBase.replace(/\/+$/, ''); $('webBase').value = stored.webBase }
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id) return
@@ -175,7 +180,15 @@ async function save() {
 
 $('save').addEventListener('click', save)
 $('saveToken').addEventListener('click', async () => {
-  await chrome.storage.local.set({ token: $('token').value.trim() })
-  showStatus('令牌已保存', true)
+  const apiBase = $('apiBase').value.trim().replace(/\/+$/, '')
+  const webBase = $('webBase').value.trim().replace(/\/+$/, '')
+  await chrome.storage.local.set({
+    token: $('token').value.trim(),
+    apiBase: apiBase || DEFAULT_API,
+    webBase: webBase || DEFAULT_WEB,
+  })
+  API = apiBase || DEFAULT_API
+  WEB = webBase || DEFAULT_WEB
+  showStatus('设置已保存', true)
 })
 init()
