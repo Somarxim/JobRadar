@@ -34,3 +34,4 @@ data/
 # Claude worktrees / gstack
 .claude/
 .gstack/
+package-lock.json  # 本仓库包管理器为 pnpm（见 README），禁双 lockfile 漂移
