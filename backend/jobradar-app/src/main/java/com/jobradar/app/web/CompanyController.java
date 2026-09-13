@@ -7,6 +7,7 @@ import com.jobradar.core.exception.BadRequestException;
 import com.jobradar.core.service.CompanyService;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,5 +44,14 @@ public class CompanyController {
         body.put("tier", company.getTier());
         body.put("company_type", company.getCompanyType());
         return body;
+    }
+
+    /**
+     * 存量 OTHER 公司重分类（规则更新/LLM 上线前的历史数据修复口）。
+     * 同步接口：LLM fallback 每家公司一次调用，几十家约 1-2 分钟，调用方需耐心等。
+     */
+    @PostMapping("/backfill-types")
+    public CompanyService.BackfillReport backfillTypes() {
+        return companyService.backfillTypes();
     }
 }
