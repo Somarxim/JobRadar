@@ -24,7 +24,8 @@ public class WebConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         var registration = registry.addMapping("/api/**")
                 .allowedMethods("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*");
+                .allowedHeaders("*")
+                .allowCredentials(true); // Session Cookie 跨域必须开启
         if (properties.cors() != null && properties.cors().allowedOrigins() != null) {
             registration.allowedOrigins(properties.cors().allowedOrigins().toArray(String[]::new));
         }

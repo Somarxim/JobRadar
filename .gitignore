@@ -30,3 +30,7 @@ data/
 .DS_Store
 .vscode/
 .idea/
+
+# Claude worktrees / gstack
+.claude/
+.gstack/
