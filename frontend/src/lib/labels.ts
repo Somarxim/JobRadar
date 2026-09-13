@@ -1,4 +1,4 @@
-import type { Stage } from '@/api/types'
+import type { CalendarEvent, Stage } from '@/api/types'
 
 /** 阶段中文名与展示色（看板列/徽章/时间线圆点共用，集中维护） */
 export const STAGE_META: Record<Stage, { label: string; className: string; dot: string }> = {
@@ -83,12 +83,25 @@ export const CHANNEL_LABELS: Record<string, string> = {
   campus_talk: '宣讲会',
 }
 
-export const CALENDAR_TYPE_META: Record<string, { label: string; className: string }> = {
-  deadline: { label: '投递截止', className: 'bg-red-100 text-red-700' },
-  written_test: { label: '笔试', className: 'bg-amber-100 text-amber-700' },
-  interview: { label: '面试', className: 'bg-violet-100 text-violet-700' },
-  planned: { label: '计划投递', className: 'bg-blue-100 text-blue-700' },
-  next_action: { label: '待办', className: 'bg-zinc-100 text-zinc-700' },
+/**
+ * 日历事件类型：label + className（图例色块）+ bar（日历格内事件条：左侧色条 + 极淡底色）。
+ * bar 采用「2px 色条 + /40 透明底」而非全色块填充——单日多事件时噪音更低（Google Calendar 风格）。
+ */
+export const CALENDAR_TYPE_META: Record<string, { label: string; className: string; bar: string }> = {
+  deadline: { label: '投递截止', className: 'bg-red-100 text-red-700', bar: 'border-l-red-500 bg-red-50/60 text-red-700 hover:bg-red-100/70' },
+  written_test: { label: '笔试', className: 'bg-amber-100 text-amber-700', bar: 'border-l-amber-500 bg-amber-50/60 text-amber-700 hover:bg-amber-100/70' },
+  interview: { label: '面试', className: 'bg-violet-100 text-violet-700', bar: 'border-l-violet-500 bg-violet-50/60 text-violet-700 hover:bg-violet-100/70' },
+  planned: { label: '计划投递', className: 'bg-blue-100 text-blue-700', bar: 'border-l-blue-500 bg-blue-50/60 text-blue-700 hover:bg-blue-100/70' },
+  next_action: { label: '待办', className: 'bg-zinc-100 text-zinc-700', bar: 'border-l-zinc-400 bg-zinc-50/60 text-zinc-600 hover:bg-zinc-100/70' },
+}
+
+/** 日历格内事件展示优先级：投递截止与面试永远占据可见位，不被 +N 折叠 */
+export const CALENDAR_TYPE_PRIORITY: Record<CalendarEvent['type'], number> = {
+  deadline: 0,
+  interview: 1,
+  written_test: 2,
+  planned: 3,
+  next_action: 4,
 }
 
 export function fmtDate(s?: string | null): string {
