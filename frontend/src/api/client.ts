@@ -23,14 +23,27 @@ import type {
   ResumeDetail,
   ResumeSummary,
   Stage,
+  User,
   WeeklyReport,
 } from './types'
 
+/** 未登录时统一跳转到登录页（后端返回 401） */
+function redirectToLogin() {
+  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login'
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
+    credentials: 'include', // Session Cookie 跨域必需
     headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
     ...init,
   })
+  if (res.status === 401) {
+    redirectToLogin()
+    throw new Error('未登录，请先登录')
+  }
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`
     try {
@@ -160,4 +173,14 @@ export const api = {
     request<ResumeDetail>(`/api/resumes/${id}/default`, { method: 'PATCH' }),
   deleteResume: (id: number) =>
     request<void>(`/api/resumes/${id}`, { method: 'DELETE' }),
+
+  // Auth
+  login: (username: string, password: string) =>
+    request<User>('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ username, password }).toString(),
+    }),
+  logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
+  me: () => request<User>('/api/auth/me'),
 }

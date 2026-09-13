@@ -62,6 +62,10 @@ jobradar:
   security:
     # Chrome 插件调用本地 API 的校验令牌（防其他网页恶意 POST），见 api-design.md §3
     local-token: ${JOBRADAR_LOCAL_TOKEN:dev-only-token-change-me}
+    # 登录密码：生产环境必须走环境变量覆盖（如 JOBRADAR_PASSWORD=xxx），禁止用默认值
+    password: ${JOBRADAR_PASSWORD:jobradar}
+    # 是否启用登录认证：本地开发设 false 免登（直接访问所有 API）；生产必须 true
+    auth-enabled: ${JOBRADAR_AUTH_ENABLED:true}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
   # LLM 模型路由（agent-design.md §1.2）：OpenAI 兼容协议，换 base-url 即换供应商。
@@ -80,11 +84,3 @@ jobradar:
   # 本地文件存储：简历 PDF 原件目录（~ 展开由 ResumeService 处理）
   storage:
     resume-dir: ${JOBRADAR_RESUME_DIR:~/.jobradar/resumes}
-  # W3 爬虫调度：每日一轮抓取启用中的 crawl_sources；enabled=false 可整体关停
-  crawler:
-    enabled: ${CRAWLER_ENABLED:true}
-    cron: ${CRAWLER_CRON:0 30 7 * * *}
-  # W3 每日推荐调度：排在爬虫批次之后（默认 07:45），LLM 不可用时自动降级规则粗排
-  recommend:
-    enabled: ${RECOMMEND_ENABLED:true}
-    cron: ${RECOMMEND_CRON:0 45 7 * * *}
