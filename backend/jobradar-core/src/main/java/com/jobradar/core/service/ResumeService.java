@@ -92,8 +92,8 @@ public class ResumeService {
         Resume resume = new Resume();
         resume.setName(name);
         resume.setFilePath(stored.toString());
-        // 首份简历自动默认，后续需显式 PATCH default
-        resume.setDefault(resumeRepository.count() == 0);
+        // 首份简历自动默认，后续需显式 PATCH default（归档的不算）
+        resume.setDefault(resumeRepository.findByIsDefaultTrue().isEmpty());
 
         parseAndFill(resume, bytes);
         return toDetail(resumeRepository.save(resume));
@@ -101,10 +101,32 @@ public class ResumeService {
 
     @Transactional(readOnly = true)
     public List<ResumeSummary> list() {
-        return resumeRepository.findAll().stream()
+        return resumeRepository.findByArchivedFalse().stream()
                 .map(r -> new ResumeSummary(r.getId(), r.getName(), r.isDefault(),
                         parseStatus(r), summaryOf(r), r.getCreatedAt()))
                 .toList();
+    }
+
+    /** 归档简历：有 match_reports 等外键关联时物理删除会破坏历史数据，软删更安全 */
+    @Transactional
+    public void delete(long id) {
+        Resume resume = findOr404(id);
+        if (resume.isArchived()) {
+            return; // 幂等：已归档直接忽略
+        }
+        // 若删的是默认简历，需把默认资格转给下一个未归档简历（如果有的话）
+        boolean wasDefault = resume.isDefault();
+        resume.setArchived(true);
+        resume.setDefault(false);
+        resumeRepository.save(resume);
+        if (wasDefault) {
+            resumeRepository.findByArchivedFalse().stream()
+                    .findFirst()
+                    .ifPresent(next -> {
+                        next.setDefault(true);
+                        resumeRepository.save(next);
+                    });
+        }
     }
 
     @Transactional(readOnly = true)
