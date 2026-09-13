@@ -35,3 +35,7 @@ data/
 .claude/
 .gstack/
 package-lock.json  # 本仓库包管理器为 pnpm（见 README），禁双 lockfile 漂移
+
+# 内部文档防回流（公开仓已净化，dev log/面试材料只进私有仓 JobRadar-internal）
+document/
+docs/learning/
