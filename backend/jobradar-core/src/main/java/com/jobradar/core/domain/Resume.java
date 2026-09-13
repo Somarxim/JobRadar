@@ -46,4 +46,8 @@ public class Resume {
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
+
+    /** 软删标记：有 match_reports 等外键关联时物理删除会级联破坏历史数据，归档更安 */
+    @Column(nullable = false)
+    private boolean archived = false;
 }
