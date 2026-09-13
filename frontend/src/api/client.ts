@@ -41,6 +41,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(detail)
   }
+  // 204 No Content 或空 body 不解析 JSON（如 DELETE 归档接口）
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return undefined as T
+  }
   return res.json() as Promise<T>
 }
 
