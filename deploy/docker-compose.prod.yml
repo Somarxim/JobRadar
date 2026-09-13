@@ -39,6 +39,10 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       # 安全：生产必须修改！
       JOBRADAR_LOCAL_TOKEN: ${JOBRADAR_LOCAL_TOKEN:?err JOBRADAR_LOCAL_TOKEN is required}
+      JOBRADAR_PASSWORD: ${JOBRADAR_PASSWORD:?err JOBRADAR_PASSWORD is required}
+      JOBRADAR_AUTH_ENABLED: "true"
+      # HTTPS 反代（Caddy）下 Cookie 只走加密通道
+      SESSION_COOKIE_SECURE: "true"
       # CORS：前端域名（Vercel 部署后把域名填这里）
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       # LLM（从环境变量注入，不硬编码）
@@ -49,12 +53,15 @@ services:
       JOBRADAR_RESUME_DIR: /data/resumes
       # 监听 0.0.0.0（容器内必须暴露给外部）
       SERVER_ADDRESS: 0.0.0.0
+      # JVM 上限：防止小内存机器 OOM（2C4G 服务器留足系统与 DB 余量）
+      JAVA_OPTS: -Xmx768m
     ports:
-      - "8080:8080"
+      # 只绑回环：外部流量一律走 Caddy(443) 反代，8080 不直接暴露公网
+      - "127.0.0.1:8080:8080"
     volumes:
       - resumes:/data/resumes
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/dashboard/summary || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
       interval: 30s
       timeout: 5s
       start_period: 60s
