@@ -1,7 +1,8 @@
 server:
   port: 8080
   # 仅监听回环地址：本地单用户应用，不暴露到局域网（architecture.md §6）
-  address: 127.0.0.1
+  # 生产环境通过 SERVER_ADDRESS=0.0.0.0 覆盖（Docker/云服务器必须暴露）
+  address: ${SERVER_ADDRESS:127.0.0.1}
 
 spring:
   application:
