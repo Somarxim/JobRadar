@@ -13,10 +13,16 @@ import java.util.Map;
  * 决定渲染主界面还是跳登录页。
  */
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api")
 public class AuthController {
 
-    @GetMapping("/me")
+    /** 存活探针：无认证、无数据库依赖，Docker healthcheck / Caddy / 监控用 */
+    @GetMapping("/health")
+    public Map<String, String> health() {
+        return Map.of("status", "up");
+    }
+
+    @GetMapping("/auth/me")
     public ResponseEntity<?> me(Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
             return ResponseEntity.status(401).body(Map.of("detail", "未登录"));

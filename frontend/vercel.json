@@ -5,6 +5,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "https://api.your-domain.top/api/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
