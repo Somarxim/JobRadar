@@ -12,6 +12,7 @@ import com.jobradar.core.util.CompanyTypeClassifier;
 import com.jobradar.core.util.DedupeHash;
 import com.jobradar.core.util.JdTextCleaner;
 import com.jobradar.core.util.JiebaSearchText;
+import com.jobradar.core.util.SmartCompanyTypeClassifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,16 +47,19 @@ public class CrawlerService {
     private final PageFetcher fetcher;
     private final ParserRegistry parserRegistry;
     private final CompanyAliases companyAliases;
+    private final SmartCompanyTypeClassifier typeClassifier;
 
     public CrawlerService(CrawlSourceRepository sourceRepository, JobRepository jobRepository,
                           CompanyRepository companyRepository, PageFetcher fetcher,
-                          ParserRegistry parserRegistry, CompanyAliases companyAliases) {
+                          ParserRegistry parserRegistry, CompanyAliases companyAliases,
+                          SmartCompanyTypeClassifier typeClassifier) {
         this.sourceRepository = sourceRepository;
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
         this.fetcher = fetcher;
         this.parserRegistry = parserRegistry;
         this.companyAliases = companyAliases;
+        this.typeClassifier = typeClassifier;
     }
 
     /** 单源抓取结果 */
@@ -199,8 +203,8 @@ public class CrawlerService {
         return companyRepository.findByName(name).orElseGet(() -> {
             Company c = new Company();
             c.setName(name);
-            // 创建时按公司名规则分类企业性质（运营商/银行/研究所…），避免全落 OTHER
-            c.setCompanyType(CompanyTypeClassifier.classify(name));
+            // 规则优先 + LLM fallback：避免规则未覆盖的科技公司（如亿通国际、阿丘科技）全落 OTHER
+            c.setCompanyType(typeClassifier.classify(name));
             return companyRepository.save(c);
         });
     }
