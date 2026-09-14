@@ -129,7 +129,8 @@ export default function BoardPage() {
   if (!groups) return <LoadingState />
 
   return (
-    <div className="space-y-4 h-full flex flex-col">
+    // 看板锁视口高度（减去 AppLayout main 的 p-6 上下内边距），长列改为列内滚动而非撑长整页
+    <div className="space-y-4 h-[calc(100dvh-3rem)] flex flex-col">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-xl font-semibold">投递管理</h1>
         <div className="inline-flex rounded-md border bg-muted p-0.5">
@@ -158,7 +159,8 @@ export default function BoardPage() {
 
       {view === 'board' ? (
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-        <div className="grid grid-cols-4 gap-3 xl:grid-cols-8 flex-1 items-start">
+        {/* auto-rows minmax(0,1fr)：每行恰为容器等高份额，列不再被内容撑高 */}
+        <div className="grid grid-cols-4 gap-3 xl:grid-cols-8 flex-1 min-h-0 auto-rows-[minmax(0,1fr)]">
           {STAGES.map((stage) => (
             <Column key={stage} stage={stage} cards={groups[stage] ?? []} onEditTodo={openTodoEdit} />
           ))}
@@ -258,20 +260,23 @@ function Column({ stage, cards, onEditTodo }: {
     <div
       ref={setNodeRef}
       className={cn(
-        'rounded-lg border bg-muted/40 min-h-40 p-2 space-y-2 transition-colors',
+        'rounded-lg border bg-muted/40 min-h-40 max-h-full p-2 transition-colors flex flex-col',
         isOver && 'ring-2 ring-primary bg-accent'
       )}
     >
-      <div className="flex items-center justify-between px-1">
+      <div className="flex items-center justify-between px-1 shrink-0">
         <span className="flex items-center gap-1.5 text-sm font-medium">
           <span className={cn('size-2 rounded-full', meta.dot)} />
           {meta.label}
         </span>
         <Badge variant="secondary">{cards.length}</Badge>
       </div>
-      {cards.map((c) => (
-        <CardView key={c.id} card={c} onEditTodo={onEditTodo} />
-      ))}
+      {/* 卡片区独立滚动：列高固定（不超过视口），长列在列内滚动；列头保持钉住 */}
+      <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto">
+        {cards.map((c) => (
+          <CardView key={c.id} card={c} onEditTodo={onEditTodo} />
+        ))}
+      </div>
     </div>
   )
 }
