@@ -112,8 +112,9 @@ export const api = {
     request<ApplicationCard>(`/api/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Companies
-  /** 部分更新公司属性（tier 分级 / companyType 企业性质纠正，null=保持原值） */
-  updateCompany: (companyId: number, patch: { tier?: CompanyTier; companyType?: CompanyType }) =>
+  /** 部分更新公司属性（tier 分级 / company_type 企业性质纠正，null=保持原值）。
+   *  注意：后端 Jackson 全局 snake_case，键名必须 company_type（驼峰会静默丢字段） */
+  updateCompany: (companyId: number, patch: { tier?: CompanyTier; company_type?: CompanyType }) =>
     request<{ tier: CompanyTier; company_type: CompanyType }>(`/api/companies/${companyId}`, {
       method: 'PATCH', body: JSON.stringify(patch),
     }),
