@@ -132,7 +132,7 @@ export default function JobDetailPage() {
               value={job.company.company_type}
               onValueChange={async (v) => {
                 try {
-                  await api.updateCompany(job.company.id, { companyType: v as JobDetail['company']['company_type'] })
+                  await api.updateCompany(job.company.id, { company_type: v as JobDetail['company']['company_type'] })
                   toast.success(`「${job.company.name}」类型已更新`)
                   load()
                 } catch (e) {

@@ -81,6 +81,8 @@ class JobRadarIntegrationTest {
     private com.jobradar.core.repository.CompanyRepository companyRepository;
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     /** 抓取层打桩：测试不依赖外网（真实站点的连通性/反爬属于运行环境，不属于逻辑正确性） */
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.jobradar.core.crawl.PageFetcher pageFetcher;
@@ -655,5 +657,19 @@ class JobRadarIntegrationTest {
 
     private int boardTotal() {
         return applicationService.board().groups().values().stream().mapToInt(java.util.List::size).sum();
+    }
+
+    /**
+     * 契约回归：PATCH /api/companies 请求体按全局 snake_case 策略反序列化。
+     * 曾踩坑：前端发驼峰 {"companyType": ...}，Jackson（SNAKE_CASE）静默丢字段，
+     * 两个字段全 null → 400「tier 与 companyType 至少给一个」。
+     * 这里用 Spring 容器里的 ObjectMapper（带 application.yml 的命名策略）钉住契约。
+     */
+    @Test
+    void companyPatchAcceptsSnakeCaseWireFormat() throws Exception {
+        var req = objectMapper.readValue("{\"company_type\":\"internet\",\"tier\":\"dream\"}",
+                com.jobradar.app.web.CompanyController.CompanyPatchRequest.class);
+        assertThat(req.companyType()).isEqualTo(com.jobradar.core.domain.CompanyType.INTERNET);
+        assertThat(req.tier()).isEqualTo(com.jobradar.core.domain.CompanyTier.DREAM);
     }
 }
