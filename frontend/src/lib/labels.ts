@@ -83,6 +83,19 @@ export const CHANNEL_LABELS: Record<string, string> = {
   campus_talk: '宣讲会',
 }
 
+/** 岗位来源平台中文名（crawl_sources.meta.platform / 手动通道） */
+export const SOURCE_PLATFORM_LABELS: Record<string, string> = {
+  niuke: '牛客',
+  ncss: '24365',
+  wechat: '微信',
+  gaoxiaojob: '高校人才网',
+  extension: '插件',
+  manual: '手动录入',
+  official: '官网',
+  boss: 'BOSS直聘',
+  guopin: '国聘',
+}
+
 /**
  * 日历事件类型：label + className（图例色块）+ bar（日历格内事件条：左侧色条 + 极淡底色）。
  * bar 采用「2px 色条 + /40 透明底」而非全色块填充——单日多事件时噪音更低（Google Calendar 风格）。
