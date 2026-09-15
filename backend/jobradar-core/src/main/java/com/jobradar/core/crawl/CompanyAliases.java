@@ -58,6 +58,23 @@ public class CompanyAliases {
         return aliasToCanonical.getOrDefault(key(companyName), companyName.trim());
     }
 
+    /**
+     * 在自由文本（如公众号文章标题）里找已知公司：返回命中别名对应的标准名，无命中返回 null。
+     * 供「搜索发现」类解析器从非结构化标题里识别主体公司（如「航天科工二院2027届校园招聘」）。
+     * 别名按键长降序匹配，优先命中更具体的名字（「航天科工二院」优于「航天科工」）。
+     */
+    public String findIn(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        String haystack = key(text);
+        return aliasToCanonical.entrySet().stream()
+                .filter(e -> haystack.contains(e.getKey()))
+                .max(java.util.Comparator.comparingInt(e -> e.getKey().length()))
+                .map(Map.Entry::getValue)
+                .orElse(null);
+    }
+
     private static String key(String name) {
         return name.replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT);
     }
