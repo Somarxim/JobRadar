@@ -64,6 +64,27 @@ public class PageFetcher {
     }
 
     /**
+     * 解析跳转链，返回最终落地 URL（不重试、不读 body——只跟 redirect）。
+     * 用途：搜狗微信等搜索落地页的链接是带时效签名的跳转链接，入库前解析成规范地址；
+     * 解析失败返回 null，调用方保留原链接兜底。
+     */
+    public String resolveFinalUrl(String url) {
+        try {
+            Connection.Response resp = Jsoup.connect(url)
+                    .userAgent(USER_AGENT)
+                    .timeout(TIMEOUT_MS)
+                    .followRedirects(true)
+                    .ignoreContentType(true)
+                    .method(Connection.Method.GET)
+                    .execute();
+            return resp.url().toString();
+        } catch (Exception e) {
+            log.debug("链接跳转解析失败（保留原链接）: {} — {}", url, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * 按源配置抓取一页。page < 0 表示不分页（静态页）；
      * page >= 0 时按 meta.pagination.pageParam 注入页码。
      */
