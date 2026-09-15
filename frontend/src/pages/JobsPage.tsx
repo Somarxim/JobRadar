@@ -16,7 +16,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { COMPANY_TYPE_LABELS, COMPANY_TYPE_META, STAGE_META, TIER_META, deadlineClass, fmtDate } from '@/lib/labels'
+import { COMPANY_TYPE_LABELS, COMPANY_TYPE_META, SOURCE_PLATFORM_LABELS, STAGE_META, TIER_META, deadlineClass, fmtDate } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import JobCreateDialog from '@/components/JobCreateDialog'
 import JobEditDialog from '@/components/JobEditDialog'
@@ -198,7 +198,7 @@ export default function JobsPage() {
           ? <Badge className={STAGE_META[j.application_stage].className}>{STAGE_META[j.application_stage].label}</Badge>
           : <span className="text-muted-foreground text-xs">未收藏</span>}
       </TableCell>
-      <TableCell className="text-muted-foreground text-xs">{j.source_platform}</TableCell>
+      <TableCell className="text-muted-foreground text-xs">{SOURCE_PLATFORM_LABELS[j.source_platform] ?? j.source_platform}</TableCell>
       <TableCell>
         <JobEditDialog jobId={j.id} onDone={load} iconOnly />
       </TableCell>
