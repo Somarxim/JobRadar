@@ -12,7 +12,7 @@ import java.util.List;
  * 配合 spring-boot-configuration-processor 还能生成配置元数据（yml 里自动补全）。
  */
 @ConfigurationProperties(prefix = "jobradar")
-public record JobRadarProperties(Security security, Cors cors) {
+public record JobRadarProperties(Security security, Cors cors, Wechat wechat) {
 
     /**
      * @param localToken   Chrome 插件/本地 API 校验令牌
@@ -24,6 +24,14 @@ public record JobRadarProperties(Security security, Cors cors) {
 
     /** allowedOrigins 来自 yml 逗号分隔串（Spring 自动按逗号拆成 List） */
     public record Cors(List<String> allowedOrigins) {
+    }
+
+    /**
+     * 微信公众号收藏机器人。token 用于回调签名校验（SHA1）；
+     * appId/appSecret 预留给后续需要 access_token 的能力（客服消息/素材接口），
+     * 明文被动回复模式下运行时暂不使用。
+     */
+    public record Wechat(String token, String appId, String appSecret) {
     }
 
     // LLM 段（jobradar.llm.*）的绑定在 core 的 CoreLlmConfig.LlmProps（W4-1 下沉，

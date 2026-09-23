@@ -89,6 +89,13 @@ jobradar:
   # 本地文件存储：简历 PDF 原件目录（~ 展开由 ResumeService 处理）
   storage:
     resume-dir: ${JOBRADAR_RESUME_DIR:~/.jobradar/resumes}
+  # 微信公众号收藏机器人（明文被动回复模式）
+  wechat:
+    token: ${WECHAT_TOKEN:}
+    app-id: ${WECHAT_APP_ID:}
+    app-secret: ${WECHAT_APP_SECRET:}
+    # 回复消息里给用户的网页查看地址（公众号里点开链接）
+    web-base-url: ${WEB_BASE_URL:https://api.somarxim.cloud}
   # W3 爬虫调度：每日一轮抓取启用中的 crawl_sources；enabled=false 可整体关停
   crawler:
     enabled: ${CRAWLER_ENABLED:true}
