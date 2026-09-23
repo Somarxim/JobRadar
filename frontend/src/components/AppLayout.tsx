@@ -12,7 +12,11 @@ const NAV = [
   { to: '/resumes', label: '简历', icon: FileUser },
 ]
 
-/** 全局布局：左侧导航 + 右侧内容区（React Router Outlet 渲染子路由） */
+/**
+ * 全局布局：桌面左侧导航，移动端顶部横条（React Router Outlet 渲染子路由）。
+ * 响应式取舍：md 断点以下侧边栏折叠为「品牌行 + 可横滑导航条」，
+ * 不做汉堡抽屉——五个导航项横排即达，比抽屉少一次点击。
+ */
 export default function AppLayout() {
   const navigate = useNavigate()
 
@@ -27,17 +31,28 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-screen">
-      {/* 深色侧边栏 + 白色内容区：slate-800 比 slate-900 浅一档，降低与内容区的割裂感 */}
-      <aside className="w-52 shrink-0 bg-slate-800 flex flex-col">
-        {/* 品牌区：主色方块 + 图标，形成视觉锚点 */}
-        <div className="flex items-center gap-2 px-4 h-14 font-semibold text-white">
-          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Radar className="size-4" />
+    <div className="flex min-h-screen flex-col md:flex-row">
+      {/* 深色导航区：移动端 = 顶部横条；桌面端 = 左侧 w-52 竖栏 */}
+      <aside className="w-full shrink-0 bg-slate-800 md:flex md:w-52 md:flex-col">
+        {/* 品牌行：移动端同时承载退出按钮（桌面端退出在栏底） */}
+        <div className="flex h-12 items-center justify-between px-3 font-semibold text-white md:h-14 md:justify-start md:gap-2 md:px-4">
+          <span className="flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Radar className="size-4" />
+            </span>
+            JobRadar
           </span>
-          JobRadar
+          <button
+            type="button"
+            onClick={doLogout}
+            aria-label="退出登录"
+            className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-slate-700 hover:text-white md:hidden"
+          >
+            <LogOut className="size-4" />
+          </button>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
+        {/* 导航：移动端可横滑横排；桌面端竖排撑满 */}
+        <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-1 md:flex-col md:gap-0 md:space-y-1 md:overflow-visible md:p-2 md:pb-0">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
@@ -45,7 +60,7 @@ export default function AppLayout() {
               end={end}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                  'flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors',
                   isActive
                     ? 'bg-primary text-primary-foreground'
                     : 'text-slate-300 hover:bg-slate-700 hover:text-white'
@@ -57,7 +72,8 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="p-2 border-t border-slate-700">
+        {/* 桌面端栏底退出（移动端已放品牌行） */}
+        <div className="hidden border-t border-slate-700 p-2 md:block">
           <button
             type="button"
             onClick={doLogout}
@@ -68,8 +84,8 @@ export default function AppLayout() {
           </button>
         </div>
       </aside>
-      {/* 内容区铺浅灰底，让白色卡片从背景中「浮」出来，增加层次 */}
-      <main className="flex-1 min-w-0 p-6 bg-muted/30">
+      {/* 内容区铺浅灰底，让白色卡片从背景中「浮」出来；移动端减小内边距 */}
+      <main className="min-w-0 flex-1 bg-muted/30 p-3 md:p-6">
         <Outlet />
       </main>
     </div>
