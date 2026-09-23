@@ -14,6 +14,7 @@ const BoardPage = lazy(() => import('@/pages/BoardPage'))
 const CalendarPage = lazy(() => import('@/pages/CalendarPage'))
 const ResumesPage = lazy(() => import('@/pages/ResumesPage'))
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
+const MobileIngestPage = lazy(() => import('@/pages/MobileIngestPage'))
 
 const lazyPage = (el: ReactNode) => <Suspense fallback={<LoadingState />}>{el}</Suspense>
 
@@ -55,6 +56,8 @@ const router = createBrowserRouter([
           { path: '/resumes', element: lazyPage(<ResumesPage />) },
         ],
       },
+      // 手机收藏页：受登录保护但无侧边栏（移动端全屏布局）
+      { path: '/m', element: lazyPage(<MobileIngestPage />), errorElement: <RouteErrorState /> },
     ],
   },
 ])
