@@ -38,6 +38,10 @@ public class LocalTokenFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         String method = request.getMethod();
+        // 微信回调走自己的 SHA1 签名校验（微信服务器既没有受信 Origin 也没有本地令牌）
+        if (path.startsWith("/api/wechat/")) {
+            return true;
+        }
         return !path.startsWith("/api/")
                 || method.equals("GET") || method.equals("HEAD") || method.equals("OPTIONS");
     }
