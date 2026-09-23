@@ -5,29 +5,67 @@ import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Link2, Radar, Type } from 'lucide-react'
+import { Image as ImageIcon, Link2, Radar, Type, X } from 'lucide-react'
 
-type Mode = 'text' | 'url'
+type Mode = 'text' | 'url' | 'image'
+
+interface PickedImage {
+  base64: string
+  mediaType: string
+  previewUrl: string
+}
+
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024
 
 /**
  * 手机端收藏页（/m）：移动端浏览器直连，免侧边栏。
- * 两种模式：粘贴 JD 文本（任何 App 里长按复制）/ 粘贴文章链接（公众号、官网）。
- * 手机上推荐「添加到主屏幕」（PWA），之后从桌面图标一步直达。
+ * 三种模式覆盖一切场景：
+ *  - 粘贴文本：能复制时最快（长按全选复制 JD）
+ *  - 粘贴链接：公众号/官网文章，服务端抓正文
+ *  - 截图上传：JD 无法复制时（图片/小程序/防复制 App），系统截图后上传，
+ *    走多模态海报解析管线（与电脑端海报导入同一套）
  */
 export default function MobileIngestPage() {
   const [mode, setMode] = useState<Mode>('text')
   const [rawText, setRawText] = useState('')
   const [url, setUrl] = useState('')
+  const [image, setImage] = useState<PickedImage | null>(null)
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<{ jobId: number; alreadyExists: boolean; company?: string; title?: string } | null>(null)
+  const [result, setResult] = useState<{ jobId: number; alreadyExists: boolean } | null>(null)
+
+  function pickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error('图片超过 4MB，请压缩后再传')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      const [header, base64] = dataUrl.split(',')
+      setImage({
+        base64,
+        mediaType: header.match(/data:(.*?);/)?.[1] ?? 'image/png',
+        previewUrl: dataUrl,
+      })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
 
   async function submit() {
-    const isUrl = mode === 'url'
-    const payload = isUrl
-      ? { source: 'mobile_url', url: url.trim(), hints: {} }
-      : { source: 'mobile_paste', raw_text: rawText.trim(), hints: {} }
-    if (isUrl && !url.trim()) { toast.error('请粘贴文章链接'); return }
-    if (!isUrl && !rawText.trim()) { toast.error('请粘贴 JD 文本'); return }
+    let payload: Record<string, unknown>
+    if (mode === 'url') {
+      if (!url.trim()) { toast.error('请粘贴文章链接'); return }
+      payload = { source: 'mobile_url', url: url.trim(), hints: {} }
+    } else if (mode === 'image') {
+      if (!image) { toast.error('请先选择截图'); return }
+      payload = { source: 'mobile_photo', image_base64: image.base64, image_media_type: image.mediaType, hints: {} }
+    } else {
+      if (!rawText.trim()) { toast.error('请粘贴 JD 文本'); return }
+      payload = { source: 'mobile_paste', raw_text: rawText.trim(), hints: {} }
+    }
 
     setLoading(true)
     setResult(null)
@@ -42,6 +80,12 @@ export default function MobileIngestPage() {
     }
   }
 
+  const MODES: { key: Mode; label: string; icon: typeof Type }[] = [
+    { key: 'text', label: '粘贴文本', icon: Type },
+    { key: 'url', label: '粘贴链接', icon: Link2 },
+    { key: 'image', label: '截图上传', icon: ImageIcon },
+  ]
+
   return (
     <div className="min-h-screen bg-muted/40 p-4">
       <div className="mx-auto max-w-md space-y-5 pt-8">
@@ -55,29 +99,22 @@ export default function MobileIngestPage() {
           </div>
         </div>
 
-        {/* 模式切换：大触控区 */}
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setMode('text')}
-            className={`flex items-center justify-center gap-1.5 rounded-lg border px-3 py-3 text-sm transition-colors ${
-              mode === 'text' ? 'border-primary bg-primary/5 text-primary font-medium' : 'bg-card text-muted-foreground'
-            }`}
-          >
-            <Type className="size-4" />粘贴文本
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('url')}
-            className={`flex items-center justify-center gap-1.5 rounded-lg border px-3 py-3 text-sm transition-colors ${
-              mode === 'url' ? 'border-primary bg-primary/5 text-primary font-medium' : 'bg-card text-muted-foreground'
-            }`}
-          >
-            <Link2 className="size-4" />粘贴链接
-          </button>
+        <div className="grid grid-cols-3 gap-2">
+          {MODES.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMode(key)}
+              className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-3 text-sm transition-colors ${
+                mode === key ? 'border-primary bg-primary/5 text-primary font-medium' : 'bg-card text-muted-foreground'
+              }`}
+            >
+              <Icon className="size-4" />{label}
+            </button>
+          ))}
         </div>
 
-        {mode === 'text' ? (
+        {mode === 'text' && (
           <div className="space-y-2">
             <Label>JD 文本（在文章里长按 → 全选 → 复制，粘贴到这里）</Label>
             <textarea
@@ -88,7 +125,9 @@ export default function MobileIngestPage() {
               className="w-full rounded-lg border bg-card p-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
           </div>
-        ) : (
+        )}
+
+        {mode === 'url' && (
           <div className="space-y-2">
             <Label>文章链接（公众号文章 / 招聘官网页面）</Label>
             <Input
@@ -100,9 +139,33 @@ export default function MobileIngestPage() {
               autoCorrect="off"
               className="h-11"
             />
-            <p className="text-xs text-muted-foreground">
-              服务端会抓取正文并解析；链接失效或被删除时请改用「粘贴文本」
-            </p>
+            <p className="text-xs text-muted-foreground">服务端抓取正文解析；链接失效时改用「粘贴文本」或「截图上传」</p>
+          </div>
+        )}
+
+        {mode === 'image' && (
+          <div className="space-y-2">
+            <Label>JD 截图（适用无法复制的页面：图片/小程序/防复制 App）</Label>
+            {image ? (
+              <div className="relative rounded-lg border bg-card p-2">
+                <img src={image.previewUrl} alt="JD 截图预览" className="w-full rounded-md" />
+                <button
+                  type="button"
+                  onClick={() => setImage(null)}
+                  aria-label="移除图片"
+                  className="absolute right-3 top-3 flex size-7 items-center justify-center rounded-full bg-black/60 text-white"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed bg-card text-sm text-muted-foreground active:bg-muted">
+                <ImageIcon className="size-6" />
+                点这里选择截图 / 拍照
+                <input type="file" accept="image/*" className="hidden" onChange={pickImage} />
+              </label>
+            )}
+            <p className="text-xs text-muted-foreground">系统截图（电源键+音量键）任何页面都能截，AI 会识别图片里的文字</p>
           </div>
         )}
 
