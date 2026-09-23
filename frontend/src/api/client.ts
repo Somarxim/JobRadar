@@ -27,10 +27,11 @@ import type {
   WeeklyReport,
 } from './types'
 
-/** 未登录时统一跳转到登录页（后端返回 401） */
+/** 未登录时统一跳转到登录页（后端返回 401）；携带当前路径作为 next，登录后回到原地 */
 function redirectToLogin() {
   if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-    window.location.href = '/login'
+    const next = encodeURIComponent(window.location.pathname + window.location.search)
+    window.location.href = `/login?next=${next}`
   }
 }
 

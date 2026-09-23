@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { LogIn } from 'lucide-react'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -23,7 +24,10 @@ export default function LoginPage() {
     try {
       await api.login(username, password)
       toast.success('登录成功')
-      navigate('/', { replace: true })
+      // 回到登录前想去的页面（如 /m）；next 只做站内跳转（必须以 / 开头且非 //），防开放重定向
+      const next = searchParams.get('next') ?? '/'
+      const safe = next.startsWith('/') && !next.startsWith('//') ? next : '/'
+      navigate(safe, { replace: true })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '登录失败')
     } finally {

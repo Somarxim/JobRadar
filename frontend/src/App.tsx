@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ReactNode, useEffect, useState } from 'react'
-import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation } from 'react-router-dom'
 import AppLayout from '@/components/AppLayout'
 import { Toaster } from '@/components/ui/sonner'
 import { LoadingState, RouteErrorState } from '@/components/StatusStates'
@@ -18,10 +18,11 @@ const MobileIngestPage = lazy(() => import('@/pages/MobileIngestPage'))
 
 const lazyPage = (el: ReactNode) => <Suspense fallback={<LoadingState />}>{el}</Suspense>
 
-/** 路由守卫：启动时调 /api/auth/me 校验登录态，未登录跳转登录页 */
+/** 路由守卫：启动时调 /api/auth/me 校验登录态，未登录跳转登录页（记住原目标页） */
 function ProtectedLayout() {
   const [checked, setChecked] = useState(false)
   const [authed, setAuthed] = useState(false)
+  const location = useLocation()
 
   useEffect(() => {
     api.me()
@@ -31,7 +32,11 @@ function ProtectedLayout() {
   }, [])
 
   if (!checked) return <LoadingState />
-  if (!authed) return <Navigate to="/login" replace />
+  // 登录成功后要回到用户原本想去的页面（如手机收藏页 /m），而不是一律丢回主页
+  if (!authed) {
+    const next = encodeURIComponent(location.pathname + location.search)
+    return <Navigate to={`/login?next=${next}`} replace />
+  }
   return <Outlet />
 }
 
