@@ -68,6 +68,7 @@ public class JobService {
     private final RecommendationRepository recommendationRepository;
     private final LlmService llmService;
     private final MatchingService matchingService;
+    private final com.jobradar.core.crawl.ArticleTextExtractor articleTextExtractor;
 
     // 构造器注入（Spring 4.3+ 单构造器免 @Autowired）：
     // 字段可 final、依赖一目了然、单测 new 出来即可——比字段注入更利于可测试性
@@ -75,7 +76,8 @@ public class JobService {
                       ApplicationRepository applicationRepository,
                       MatchReportRepository matchReportRepository,
                       RecommendationRepository recommendationRepository,
-                      LlmService llmService, MatchingService matchingService) {
+                      LlmService llmService, MatchingService matchingService,
+                      com.jobradar.core.crawl.ArticleTextExtractor articleTextExtractor) {
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
         this.applicationRepository = applicationRepository;
@@ -83,6 +85,7 @@ public class JobService {
         this.recommendationRepository = recommendationRepository;
         this.llmService = llmService;
         this.matchingService = matchingService;
+        this.articleTextExtractor = articleTextExtractor;
     }
 
     /**
@@ -207,9 +210,21 @@ public class JobService {
         List<String> warnings = new ArrayList<>();
         var hints = req.hints();
 
+        // 「粘贴链接」模式（手机收藏场景）：raw_text 为空但给了文章 URL 时，
+        // 服务端抓取正文（等价于用户自己打开页面），失败给明确降级指引
+        String rawText = req.rawText();
+        if ((rawText == null || rawText.isBlank()) && req.url() != null && !req.url().isBlank()) {
+            rawText = articleTextExtractor.extract(req.url().trim());
+            if (rawText == null) {
+                throw new UnprocessableException(
+                        "链接内容抓取失败或为空（可能是已删除/需登录的页面），请改用「粘贴文本」方式：长按文章全选复制后提交");
+            }
+            warnings.add("JD 来自链接抓取，请人工复核正文完整性");
+        }
+
         // 服务端噪音截断安全网（W2-5）：任何来源的 raw_text 入库/送 AI 前先清洗，
         // 插件主容器提取是治本，这里是兜底（旧版插件/手动粘贴同样受益）
-        String rawText = JdTextCleaner.truncateNoise(req.rawText());
+        rawText = JdTextCleaner.truncateNoise(rawText);
 
         // 手填 hints 优先；company/title 缺省时由 LLM 从 JD 原文提取（兜底路径）
         String company = hints != null ? trimToNull(hints.company()) : null;

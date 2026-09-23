@@ -1,0 +1,18 @@
+{
+  "name": "JobRadar 收藏岗位",
+  "short_name": "收藏岗位",
+  "description": "手机上把岗位文章收藏进 JobRadar",
+  "start_url": "/m",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f4f5",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
