@@ -208,6 +208,42 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate app
 
 ---
 
+## 5.5 方案 B：前端也托管在自己服务器（国内用户推荐）
+
+Vercel 在国内网络环境下访问不稳定（可能需要代理）。如果你和你的用户都在国内，
+可以把前端静态文件直接交给 Caddy 托管——**前后端同域，连 CORS 跨域都消失了**：
+
+```bash
+# 开发机：构建并同步到服务器
+cd frontend && pnpm build
+rsync -az --delete dist/ root@你的IP:/srv/jobradar-web/
+
+# 服务器：Caddyfile 改为「API 反代 + 静态托管」
+cat > /etc/caddy/Caddyfile << 'EOF'
+api.example.top {
+    encode gzip
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8080
+    }
+    handle {
+        root * /srv/jobradar-web
+        try_files {path} /index.html
+        file_server
+    }
+}
+EOF
+systemctl reload caddy
+
+# 服务器：CORS 白名单加入本域（浏览器 Origin 现在是 api.example.top）
+sed -i 's|CORS_ORIGINS=.*|CORS_ORIGINS=https://api.example.top|' /opt/JobRadar/deploy/.env
+cd /opt/JobRadar/deploy && docker compose -f docker-compose.prod.yml up -d --force-recreate app
+```
+
+要点：
+- SPA 路由回退靠 `try_files {path} /index.html`（直接访问 /board 等路径不会 404）
+- 前端更新流程 = 本地 `pnpm build` + rsync，秒级完成，无容器重建
+- 此后 `https://api.example.top` 一个域名承载全部（网页 + API + 手机收藏页 /m）
+
 ## 6. 端到端验证清单
 
 | 检查项 | 操作 | 预期 |
@@ -224,7 +260,7 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate app
 
 插件弹窗 → 设置：
 - **后端地址**：`https://api.example.top`
-- **前端地址**：`https://jobradar-xxxx.vercel.app`
+- **前端地址**：`https://jobradar-xxxx.vercel.app`（方案 B 则为 `https://api.example.top`）
 - **X-Local-Token**：与服务器 `.env` 的 `JOBRADAR_LOCAL_TOKEN` 一致
 
 保存后正常收藏岗位即可。插件用令牌预认证，不受网页登录态影响。
